@@ -1,0 +1,975 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Bunny Clicker</title>
+  <style>
+    :root {
+      --bg: #faf7f2;
+      --panel: #ffffff;
+      --panel-2: #fbf6ee;
+      --ink: #2b2118;
+      --muted: #8a7a66;
+      --accent: #ff8aa8;
+      --accent-2: #ffd7a8;
+      --good: #5fae6b;
+      --bad: #c8513a;
+      --shadow: 0 6px 16px rgba(60, 40, 20, 0.08);
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      min-height: 100%;
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      background:
+        radial-gradient(1200px 600px at 10% -10%, #ffe9d4 0%, transparent 60%),
+        radial-gradient(900px 500px at 110% 110%, #ffd6e2 0%, transparent 60%),
+        var(--bg);
+      color: var(--ink);
+      -webkit-user-select: none;
+      user-select: none;
+      touch-action: manipulation;
+    }
+    body { overflow-x: hidden; }
+
+    .app {
+      display: grid;
+      grid-template-columns: 1fr 380px;
+      gap: 16px;
+      padding: 16px;
+      max-width: 1200px;
+      margin: 0 auto;
+      min-height: 100vh;
+    }
+    @media (max-width: 880px) {
+      .app { grid-template-columns: 1fr; padding: 12px; gap: 12px; }
+    }
+
+    .panel {
+      background: var(--panel);
+      border-radius: 18px;
+      box-shadow: var(--shadow);
+      padding: 18px;
+    }
+
+    /* ---------- Left side ---------- */
+    .stage {
+      display: flex;
+      flex-direction: column;
+      align-items: stretch;
+      min-height: min(86vh, 760px);
+    }
+    .topline {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      margin-bottom: 8px;
+    }
+    .pets {
+      font-size: clamp(1.6rem, 4.2vw, 2.6rem);
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      font-variant-numeric: tabular-nums;
+    }
+    .pets small { color: var(--muted); font-weight: 500; font-size: 0.55em; }
+    .cps {
+      color: var(--muted);
+      font-variant-numeric: tabular-nums;
+      font-size: 0.95rem;
+    }
+
+    .bunny-wrap {
+      flex: 1;
+      display: grid;
+      place-items: center;
+      position: relative;
+    }
+    #bunny {
+      font-size: clamp(9rem, 26vw, 18rem);
+      cursor: grab;
+      display: inline-block;
+      line-height: 1;
+      transition: transform 100ms ease;
+      filter: drop-shadow(0 12px 18px rgba(0,0,0,0.10));
+    }
+    #bunny:active { cursor: grabbing; transform: scale(0.96); }
+    #bunny.pet { animation: wiggle 380ms ease; }
+    @keyframes wiggle {
+      0%   { transform: scale(1) rotate(0); }
+      25%  { transform: scale(1.07) rotate(-5deg); }
+      50%  { transform: scale(1.10) rotate(4deg); }
+      75%  { transform: scale(1.06) rotate(-2deg); }
+      100% { transform: scale(1) rotate(0); }
+    }
+
+    .click-info {
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.9rem;
+      font-variant-numeric: tabular-nums;
+      margin-top: 6px;
+      min-height: 1.2em;
+    }
+    .mood {
+      text-align: center;
+      color: #a38e6e;
+      font-style: italic;
+      min-height: 1.4em;
+      margin-top: 4px;
+    }
+
+    .stats {
+      margin-top: 14px;
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+    }
+    .stat {
+      background: var(--panel-2);
+      border-radius: 12px;
+      padding: 10px 12px;
+      text-align: center;
+    }
+    .stat .v {
+      font-weight: 700;
+      font-variant-numeric: tabular-nums;
+      font-size: 1rem;
+    }
+    .stat .k {
+      color: var(--muted);
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+    }
+
+    .toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-top: 12px;
+      gap: 8px;
+      flex-wrap: wrap;
+    }
+    .toolbar .left, .toolbar .right { display: flex; gap: 6px; flex-wrap: wrap; }
+    button.btn {
+      background: var(--panel-2);
+      color: var(--ink);
+      border: 1px solid rgba(0,0,0,0.05);
+      padding: 8px 12px;
+      border-radius: 999px;
+      font: inherit;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: transform 80ms ease, background 120ms ease;
+    }
+    button.btn:hover { background: #fff0dc; }
+    button.btn:active { transform: translateY(1px); }
+    button.btn.danger { color: var(--bad); }
+
+    /* ---------- Floating numbers + hearts ---------- */
+    .fx {
+      position: fixed;
+      pointer-events: none;
+      inset: 0;
+      overflow: hidden;
+      z-index: 30;
+    }
+    .fx .heart, .fx .pop {
+      position: absolute;
+      will-change: transform, opacity;
+    }
+    .fx .heart {
+      font-size: 1.5rem;
+      animation: float 1100ms ease-out forwards;
+    }
+    .fx .pop {
+      font-weight: 800;
+      color: var(--accent);
+      text-shadow: 0 2px 0 #fff, 0 0 12px rgba(255,138,168,0.4);
+      animation: pop 900ms ease-out forwards;
+      font-size: 1.1rem;
+    }
+    @keyframes float {
+      0%   { transform: translate(-50%, 0) scale(0.6); opacity: 1; }
+      100% { transform: translate(calc(-50% + var(--dx, 0px)), -120px) scale(1.2); opacity: 0; }
+    }
+    @keyframes pop {
+      0%   { transform: translate(-50%, 0) scale(0.8); opacity: 1; }
+      100% { transform: translate(-50%, -90px) scale(1.1); opacity: 0; }
+    }
+
+    /* ---------- Shop ---------- */
+    .shop { display: flex; flex-direction: column; gap: 12px; }
+    .shop-section h3 {
+      margin: 0 0 8px;
+      font-size: 0.78rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--muted);
+    }
+    .list { display: flex; flex-direction: column; gap: 8px; }
+
+    .item {
+      display: grid;
+      grid-template-columns: 44px 1fr auto;
+      align-items: center;
+      gap: 10px;
+      background: var(--panel-2);
+      border: 1px solid transparent;
+      border-radius: 12px;
+      padding: 10px 12px;
+      cursor: pointer;
+      transition: transform 80ms ease, background 120ms ease, border-color 120ms ease;
+      text-align: left;
+      font: inherit;
+      color: inherit;
+      width: 100%;
+    }
+    .item:hover { background: #fff0dc; }
+    .item:active { transform: translateY(1px); }
+    .item.locked {
+      opacity: 0.45;
+      cursor: not-allowed;
+      filter: grayscale(0.8);
+    }
+    .item.cant {
+      cursor: not-allowed;
+      opacity: 0.65;
+    }
+    .item.cant:hover { background: var(--panel-2); }
+    .item .icon { font-size: 1.8rem; text-align: center; }
+    .item .name { font-weight: 600; }
+    .item .desc { color: var(--muted); font-size: 0.78rem; line-height: 1.25; }
+    .item .right {
+      text-align: right;
+      display: flex;
+      flex-direction: column;
+      align-items: flex-end;
+      gap: 2px;
+    }
+    .item .cost {
+      font-variant-numeric: tabular-nums;
+      font-weight: 700;
+      font-size: 0.92rem;
+      color: var(--ink);
+    }
+    .item.cant .cost { color: var(--bad); }
+    .item .meta {
+      color: var(--muted);
+      font-size: 0.72rem;
+      font-variant-numeric: tabular-nums;
+    }
+    .item .owned {
+      position: absolute;
+      transform: translate(8px, -8px);
+      background: var(--accent);
+      color: #fff;
+      font-size: 0.7rem;
+      padding: 0 6px;
+      border-radius: 999px;
+      font-weight: 700;
+    }
+    .building-row { position: relative; }
+
+    .upgrade {
+      grid-template-columns: 36px 1fr auto;
+    }
+    .upgrade .icon { font-size: 1.4rem; }
+
+    /* ---------- Toast ---------- */
+    .toast-stack {
+      position: fixed;
+      right: 14px;
+      bottom: 14px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      z-index: 50;
+      pointer-events: none;
+    }
+    .toast {
+      background: #fff;
+      box-shadow: var(--shadow);
+      border-radius: 12px;
+      padding: 10px 14px;
+      font-size: 0.88rem;
+      max-width: 280px;
+      animation: toast-in 240ms ease, toast-out 240ms ease 2.6s forwards;
+    }
+    .toast .t { font-weight: 700; margin-bottom: 2px; }
+    .toast .b { color: var(--muted); font-size: 0.8rem; }
+    @keyframes toast-in {
+      from { transform: translateY(8px); opacity: 0; }
+      to   { transform: none; opacity: 1; }
+    }
+    @keyframes toast-out {
+      to { transform: translateY(8px); opacity: 0; }
+    }
+
+    /* ---------- Modal ---------- */
+    .modal-back {
+      position: fixed; inset: 0;
+      background: rgba(43, 33, 24, 0.45);
+      display: grid; place-items: center;
+      z-index: 100;
+      padding: 16px;
+    }
+    .modal {
+      background: var(--panel);
+      border-radius: 16px;
+      padding: 18px;
+      max-width: 380px;
+      box-shadow: var(--shadow);
+    }
+    .modal h2 { margin: 0 0 6px; }
+    .modal p { color: var(--muted); margin: 0 0 14px; }
+    .modal .actions { display: flex; gap: 8px; justify-content: flex-end; }
+    .btn.primary { background: var(--accent); color: #fff; }
+    .btn.primary:hover { background: #ff7396; }
+
+    .hidden { display: none !important; }
+
+    .back-link {
+      position: fixed;
+      top: 12px;
+      left: 12px;
+      z-index: 60;
+      background: var(--panel);
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 0.82rem;
+      padding: 6px 12px;
+      border-radius: 999px;
+      box-shadow: var(--shadow);
+      transition: color 120ms ease, transform 80ms ease;
+    }
+    .back-link:hover { color: var(--ink); }
+    .back-link:active { transform: translateY(1px); }
+  </style>
+</head>
+<body>
+  <a class="back-link" href="../../">← arcade</a>
+  <div class="app">
+    <section class="panel stage">
+      <div class="topline">
+        <div class="pets"><span id="count">0</span> <small>pets</small></div>
+        <div class="cps">
+          <span id="cps">0.0</span> per second
+          <span id="bonus" style="margin-left:8px;"></span>
+        </div>
+      </div>
+
+      <div class="bunny-wrap">
+        <div id="bunny" role="button" tabindex="0" aria-label="Click the bunny">🐰</div>
+      </div>
+
+      <div class="click-info">
+        Each pet: <span id="clickValue">1</span>
+      </div>
+      <div class="mood" id="mood">click the bunny.</div>
+
+      <div class="stats">
+        <div class="stat"><div class="v" id="statTotal">0</div><div class="k">all-time pets</div></div>
+        <div class="stat"><div class="v" id="statClicks">0</div><div class="k">clicks</div></div>
+        <div class="stat"><div class="v" id="statTime">0s</div><div class="k">time played</div></div>
+      </div>
+
+      <div class="toolbar">
+        <div class="left">
+          <button class="btn" id="saveBtn" title="Save now">💾 Save</button>
+          <button class="btn" id="exportBtn" title="Export save to clipboard">📤 Export</button>
+          <button class="btn" id="importBtn" title="Import save">📥 Import</button>
+        </div>
+        <div class="right">
+          <button class="btn danger" id="resetBtn">Reset</button>
+        </div>
+      </div>
+    </section>
+
+    <aside class="panel shop">
+      <div class="shop-section" id="upgradesSection">
+        <h3>Upgrades</h3>
+        <div class="list" id="upgradeList"></div>
+        <div class="meta" id="upgradeEmpty" style="color:var(--muted); font-size:0.82rem;">No upgrades available yet — keep petting.</div>
+      </div>
+      <div class="shop-section">
+        <h3>Buildings</h3>
+        <div class="list" id="buildingList"></div>
+      </div>
+    </aside>
+  </div>
+
+  <div class="fx" id="fx" aria-hidden="true"></div>
+  <div class="toast-stack" id="toastStack" aria-live="polite"></div>
+
+  <div class="modal-back hidden" id="modalBack">
+    <div class="modal">
+      <h2 id="modalTitle">Reset everything?</h2>
+      <p id="modalBody">This will erase all your pets, buildings, and upgrades. There is no undo.</p>
+      <div id="modalInput" class="hidden" style="margin-bottom:12px;">
+        <textarea id="importText" rows="4" style="width:100%; font-family: ui-monospace, monospace; font-size: 0.78rem; border-radius: 8px; border: 1px solid #ddd; padding: 8px;" placeholder="Paste save string here"></textarea>
+      </div>
+      <div class="actions">
+        <button class="btn" id="modalCancel">Cancel</button>
+        <button class="btn primary" id="modalOk">Confirm</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  (() => {
+    'use strict';
+
+    // ---------- Definitions ----------
+    const BUILDINGS = [
+      { id: 'carrot',  name: 'Carrot',           icon: '🥕', baseCost: 15,        baseCps: 0.1,    desc: 'A nibble in the right direction.' },
+      { id: 'hay',     name: 'Hay Bale',         icon: '🌾', baseCost: 100,       baseCps: 1,      desc: 'Crunchy filler.' },
+      { id: 'hutch',   name: 'Bunny Hutch',      icon: '🏠', baseCost: 1100,      baseCps: 8,      desc: 'Cozy bunny housing.' },
+      { id: 'garden',  name: 'Garden',           icon: '🌱', baseCost: 12000,     baseCps: 47,     desc: 'Pets per fertilizer.' },
+      { id: 'farm',    name: 'Bunny Farm',       icon: '🚜', baseCost: 130000,    baseCps: 260,    desc: 'Industrial-scale snuggles.' },
+      { id: 'field',   name: 'Mega Field',       icon: '🌽', baseCost: 1.4e6,     baseCps: 1400,   desc: 'Carrots as far as the ear can see.' },
+      { id: 'empire',  name: 'Bunny Empire',     icon: '👑', baseCost: 2e7,       baseCps: 7800,   desc: 'All shall hop.' },
+      { id: 'lunar',   name: 'Lunar Burrow',     icon: '🪐', baseCost: 3.3e8,     baseCps: 44000,  desc: 'Soft side of the moon.' },
+      { id: 'quantum', name: 'Quantum Lop',      icon: '⚛️', baseCost: 5.1e9,     baseCps: 260000, desc: 'Schrödinger’s pet.' },
+      { id: 'cosmic',  name: 'Cosmic Bunny God', icon: '🌌', baseCost: 7.5e10,    baseCps: 1.6e6,  desc: 'In the beginning, there was binky.' },
+    ];
+
+    // Click upgrades: multiply per-click pet value
+    // Building upgrades: 2x production for one building, unlocked when you own N of it
+    const UPGRADES = [
+      { id: 'click-1', kind: 'click', name: 'Softer Hands',     icon: '🤲', desc: 'Pets are 2× as nice.',  cost: 100,    mult: 2, req: { pets: 50 } },
+      { id: 'click-2', kind: 'click', name: 'Bunny Slippers',   icon: '🩰', desc: 'Pets are 2× as nice.',  cost: 5000,   mult: 2, req: { pets: 2500 } },
+      { id: 'click-3', kind: 'click', name: 'Velvet Touch',     icon: '🧤', desc: 'Pets are 2× as nice.',  cost: 100000, mult: 2, req: { pets: 50000 } },
+      { id: 'click-4', kind: 'click', name: 'Reiki Ears',       icon: '✨', desc: 'Pets are 3× as nice.',  cost: 5e6,    mult: 3, req: { pets: 2.5e6 } },
+      { id: 'click-5', kind: 'click', name: 'Bunny Whisperer',  icon: '🗣️', desc: 'Pets are 3× as nice.',  cost: 1e8,    mult: 3, req: { pets: 5e7 } },
+      { id: 'click-6', kind: 'click', name: 'Ascended Patting', icon: '🌟', desc: 'Pets are 5× as nice.',  cost: 1e10,   mult: 5, req: { pets: 5e9 } },
+    ];
+
+    // Build per-building upgrades (×2 each tier at owned count threshold)
+    const BUILDING_UPGRADE_TIERS = [
+      { owned: 1,   costMult: 10,    suffix: 'I' },
+      { owned: 5,   costMult: 100,   suffix: 'II' },
+      { owned: 25,  costMult: 1000,  suffix: 'III' },
+      { owned: 50,  costMult: 10000, suffix: 'IV' },
+      { owned: 100, costMult: 1e5,   suffix: 'V' },
+    ];
+    BUILDINGS.forEach(b => {
+      BUILDING_UPGRADE_TIERS.forEach(t => {
+        UPGRADES.push({
+          id: `${b.id}-${t.suffix}`,
+          kind: 'building',
+          target: b.id,
+          name: `${b.name} ${t.suffix}`,
+          icon: b.icon,
+          desc: `${b.name}s produce 2× more pets.`,
+          cost: b.baseCost * t.costMult,
+          mult: 2,
+          req: { building: b.id, owned: t.owned },
+        });
+      });
+    });
+
+    // ---------- State ----------
+    const SAVE_KEY = 'bunny.clicker.v1';
+    const state = {
+      pets: 0,
+      total: 0,
+      clicks: 0,
+      buildings: Object.fromEntries(BUILDINGS.map(b => [b.id, 0])),
+      upgrades: {}, // id -> true
+      startedAt: Date.now(),
+      playMs: 0,
+      lastTick: Date.now(),
+    };
+
+    function load() {
+      try {
+        const raw = localStorage.getItem(SAVE_KEY);
+        if (!raw) return false;
+        const data = JSON.parse(raw);
+        Object.assign(state, data);
+        // ensure all building keys exist
+        BUILDINGS.forEach(b => { if (state.buildings[b.id] == null) state.buildings[b.id] = 0; });
+        if (!state.upgrades || typeof state.upgrades !== 'object') state.upgrades = {};
+        // Offline progress (cap 3h)
+        const now = Date.now();
+        const dt = Math.min(Math.max(0, now - (state.lastTick || now)), 3 * 60 * 60 * 1000);
+        if (dt > 5000) {
+          const cps = computeCps();
+          const earned = cps * (dt / 1000);
+          if (earned > 0) {
+            state.pets += earned;
+            state.total += earned;
+            queueToast('Welcome back!', `Your bunnies earned ${fmt(earned)} pets while you were gone.`);
+          }
+        }
+        state.lastTick = now;
+        return true;
+      } catch (e) {
+        console.warn('load failed', e);
+        return false;
+      }
+    }
+
+    function save() {
+      try {
+        state.lastTick = Date.now();
+        localStorage.setItem(SAVE_KEY, JSON.stringify(state));
+      } catch (e) {
+        console.warn('save failed', e);
+      }
+    }
+
+    function reset() {
+      localStorage.removeItem(SAVE_KEY);
+      state.pets = 0;
+      state.total = 0;
+      state.clicks = 0;
+      state.buildings = Object.fromEntries(BUILDINGS.map(b => [b.id, 0]));
+      state.upgrades = {};
+      state.startedAt = Date.now();
+      state.playMs = 0;
+      state.lastTick = Date.now();
+      renderShop();
+      moodEl.textContent = 'a fresh start. click the bunny.';
+    }
+
+    // ---------- Math ----------
+    function buildingCost(b) {
+      const owned = state.buildings[b.id] || 0;
+      return Math.ceil(b.baseCost * Math.pow(1.15, owned));
+    }
+
+    function buildingMult(id) {
+      let m = 1;
+      for (const u of UPGRADES) {
+        if (u.kind === 'building' && u.target === id && state.upgrades[u.id]) m *= u.mult;
+      }
+      return m;
+    }
+
+    function clickMult() {
+      let m = 1;
+      for (const u of UPGRADES) {
+        if (u.kind === 'click' && state.upgrades[u.id]) m *= u.mult;
+      }
+      return m;
+    }
+
+    function buildingCps(b) {
+      return (state.buildings[b.id] || 0) * b.baseCps * buildingMult(b.id);
+    }
+
+    function computeCps() {
+      let total = 0;
+      for (const b of BUILDINGS) total += buildingCps(b);
+      return total;
+    }
+
+    function clickValue() {
+      // 1 base, plus 1% of total CPS (a tiny scaling so clicks stay relevant late)
+      const base = 1 + computeCps() * 0.01;
+      return base * clickMult();
+    }
+
+    function canAfford(n) { return state.pets + 1e-6 >= n; }
+
+    // ---------- Format ----------
+    function fmt(n) {
+      if (!isFinite(n)) return '∞';
+      if (n < 1) return n.toFixed(2).replace(/\.?0+$/, '');
+      if (n < 1000) return Math.floor(n).toLocaleString();
+      const units = ['', 'K', 'M', 'B', 'T', 'Qa', 'Qi', 'Sx', 'Sp', 'Oc', 'No', 'De'];
+      let i = 0;
+      while (n >= 1000 && i < units.length - 1) { n /= 1000; i++; }
+      const dec = n < 10 ? 2 : n < 100 ? 1 : 0;
+      return n.toFixed(dec) + units[i];
+    }
+
+    function fmtTime(ms) {
+      const s = Math.floor(ms / 1000);
+      const h = Math.floor(s / 3600);
+      const m = Math.floor((s % 3600) / 60);
+      const ss = s % 60;
+      if (h > 0) return `${h}h ${m}m`;
+      if (m > 0) return `${m}m ${ss}s`;
+      return `${ss}s`;
+    }
+
+    // ---------- DOM refs ----------
+    const bunny = document.getElementById('bunny');
+    const countEl = document.getElementById('count');
+    const cpsEl = document.getElementById('cps');
+    const bonusEl = document.getElementById('bonus');
+    const clickValueEl = document.getElementById('clickValue');
+    const moodEl = document.getElementById('mood');
+    const fx = document.getElementById('fx');
+    const buildingList = document.getElementById('buildingList');
+    const upgradeList = document.getElementById('upgradeList');
+    const upgradeEmpty = document.getElementById('upgradeEmpty');
+    const statTotal = document.getElementById('statTotal');
+    const statClicks = document.getElementById('statClicks');
+    const statTime = document.getElementById('statTime');
+    const toastStack = document.getElementById('toastStack');
+
+    const moods = [
+      'happy bunny noises',
+      'twitch twitch',
+      'soft.',
+      'more please',
+      'purring? (do bunnies purr?)',
+      'loaf mode activated',
+      'binky!',
+      'ear flop',
+      'nose boop',
+      'thump (good thump)',
+      'zoomies incoming',
+      'demands tribute',
+    ];
+
+    // ---------- Click ----------
+    function doPet(x, y) {
+      const v = clickValue();
+      state.pets += v;
+      state.total += v;
+      state.clicks++;
+
+      bunny.classList.remove('pet');
+      void bunny.offsetWidth;
+      bunny.classList.add('pet');
+
+      if (state.clicks % 4 === 0) {
+        moodEl.textContent = moods[Math.floor(Math.random() * moods.length)];
+      }
+
+      spawnHeart(x, y);
+      spawnPop(x, y, v);
+      renderHeader();
+    }
+
+    function spawnHeart(x, y) {
+      const rect = bunny.getBoundingClientRect();
+      const px = x ?? rect.left + rect.width / 2;
+      const py = y ?? rect.top + rect.height / 3;
+      const h = document.createElement('span');
+      h.className = 'heart';
+      h.textContent = ['💖','💕','❤️','✨','🌸'][Math.floor(Math.random() * 5)];
+      h.style.left = px + 'px';
+      h.style.top = py + 'px';
+      h.style.setProperty('--dx', (Math.random() * 80 - 40).toFixed(0) + 'px');
+      fx.appendChild(h);
+      setTimeout(() => h.remove(), 1100);
+    }
+
+    function spawnPop(x, y, v) {
+      const rect = bunny.getBoundingClientRect();
+      const px = x ?? rect.left + rect.width / 2;
+      const py = y ?? rect.top + rect.height / 3;
+      const p = document.createElement('span');
+      p.className = 'pop';
+      p.textContent = '+' + fmt(v);
+      p.style.left = px + 'px';
+      p.style.top = py + 'px';
+      fx.appendChild(p);
+      setTimeout(() => p.remove(), 900);
+    }
+
+    bunny.addEventListener('pointerdown', (e) => doPet(e.clientX, e.clientY));
+    bunny.addEventListener('keydown', (e) => {
+      if (e.key === ' ' || e.key === 'Enter') { e.preventDefault(); doPet(); }
+    });
+
+    // ---------- Shop ----------
+    function buyBuilding(b) {
+      const cost = buildingCost(b);
+      if (!canAfford(cost)) {
+        flashCant();
+        return;
+      }
+      state.pets -= cost;
+      state.buildings[b.id] = (state.buildings[b.id] || 0) + 1;
+      renderShop();
+      renderHeader();
+      save();
+      maybeMilestone(b);
+    }
+
+    function buyUpgrade(u) {
+      if (!isUpgradeAvailable(u)) return;
+      if (!canAfford(u.cost)) {
+        flashCant();
+        return;
+      }
+      state.pets -= u.cost;
+      state.upgrades[u.id] = true;
+      renderShop();
+      renderHeader();
+      save();
+      queueToast('Upgrade!', `${u.icon} ${u.name} unlocked.`);
+    }
+
+    function isUpgradeAvailable(u) {
+      if (state.upgrades[u.id]) return false;
+      if (u.req?.pets != null && state.total < u.req.pets) return false;
+      if (u.req?.building != null && (state.buildings[u.req.building] || 0) < u.req.owned) return false;
+      return true;
+    }
+
+    function maybeMilestone(b) {
+      const owned = state.buildings[b.id];
+      if ([1, 25, 50, 100].includes(owned)) {
+        queueToast(`${b.icon} ${owned}× ${b.name}!`, `Now producing ${fmt(buildingCps(b))}/sec.`);
+      }
+    }
+
+    function flashCant() {
+      bunny.animate(
+        [{ transform: 'translateX(0)' }, { transform: 'translateX(-6px)' }, { transform: 'translateX(6px)' }, { transform: 'translateX(0)' }],
+        { duration: 220, easing: 'ease' }
+      );
+    }
+
+    // ---------- Toasts ----------
+    let toastTimer = null;
+    function queueToast(title, body) {
+      const t = document.createElement('div');
+      t.className = 'toast';
+      const ti = document.createElement('div');
+      ti.className = 't';
+      ti.textContent = title;
+      const b = document.createElement('div');
+      b.className = 'b';
+      b.textContent = body;
+      t.appendChild(ti);
+      t.appendChild(b);
+      toastStack.appendChild(t);
+      setTimeout(() => t.remove(), 3000);
+    }
+
+    // ---------- Rendering ----------
+    function renderHeader() {
+      countEl.textContent = fmt(state.pets);
+      const cps = computeCps();
+      cpsEl.textContent = fmt(cps);
+      const cv = clickValue();
+      clickValueEl.textContent = fmt(cv);
+      const mult = clickMult();
+      bonusEl.textContent = mult > 1 ? `· ×${mult} click bonus` : '';
+      statTotal.textContent = fmt(state.total);
+      statClicks.textContent = state.clicks.toLocaleString();
+      statTime.textContent = fmtTime(state.playMs);
+    }
+
+    function renderShop() {
+      // Buildings
+      buildingList.innerHTML = '';
+      let unlockedAny = false;
+      BUILDINGS.forEach((b, idx) => {
+        const owned = state.buildings[b.id] || 0;
+        // Unlock visually once player can afford ~30% of base cost or already owns one
+        const prevOwned = idx === 0 ? 1 : (state.buildings[BUILDINGS[idx - 1].id] || 0);
+        const unlocked = owned > 0 || state.total >= b.baseCost * 0.3 || prevOwned > 0;
+        if (!unlocked) return;
+        unlockedAny = true;
+
+        const cost = buildingCost(b);
+        const affordable = canAfford(cost);
+
+        const wrap = document.createElement('div');
+        wrap.className = 'building-row';
+
+        const btn = document.createElement('button');
+        btn.className = 'item' + (affordable ? '' : ' cant');
+        btn.type = 'button';
+        btn.innerHTML = `
+          <div class="icon">${b.icon}</div>
+          <div>
+            <div class="name">${b.name}</div>
+            <div class="desc">${b.desc}</div>
+          </div>
+          <div class="right">
+            <div class="cost">${fmt(cost)}</div>
+            <div class="meta">+${fmt(b.baseCps * buildingMult(b.id))}/sec each</div>
+          </div>
+        `;
+        btn.addEventListener('click', () => buyBuilding(b));
+        wrap.appendChild(btn);
+
+        if (owned > 0) {
+          const tag = document.createElement('div');
+          tag.className = 'owned';
+          tag.textContent = owned;
+          wrap.appendChild(tag);
+        }
+
+        buildingList.appendChild(wrap);
+      });
+      if (!unlockedAny) {
+        const empty = document.createElement('div');
+        empty.style.color = 'var(--muted)';
+        empty.style.fontSize = '0.82rem';
+        empty.textContent = 'Pet the bunny a few times to unlock the shop.';
+        buildingList.appendChild(empty);
+      }
+
+      // Upgrades
+      upgradeList.innerHTML = '';
+      const available = UPGRADES.filter(isUpgradeAvailable);
+      if (available.length === 0) {
+        upgradeEmpty.classList.remove('hidden');
+      } else {
+        upgradeEmpty.classList.add('hidden');
+      }
+      available.forEach(u => {
+        const affordable = canAfford(u.cost);
+        const btn = document.createElement('button');
+        btn.className = 'item upgrade' + (affordable ? '' : ' cant');
+        btn.type = 'button';
+        btn.innerHTML = `
+          <div class="icon">${u.icon}</div>
+          <div>
+            <div class="name">${u.name}</div>
+            <div class="desc">${u.desc}</div>
+          </div>
+          <div class="right">
+            <div class="cost">${fmt(u.cost)}</div>
+          </div>
+        `;
+        btn.addEventListener('click', () => buyUpgrade(u));
+        upgradeList.appendChild(btn);
+      });
+    }
+
+    // ---------- Game loop ----------
+    let lastFrame = performance.now();
+    let lastSave = performance.now();
+    let lastShopRender = performance.now();
+    function loop(now) {
+      const dt = Math.min(now - lastFrame, 1000); // cap to 1s
+      lastFrame = now;
+
+      const cps = computeCps();
+      if (cps > 0) {
+        const gain = cps * (dt / 1000);
+        state.pets += gain;
+        state.total += gain;
+      }
+      state.playMs += dt;
+
+      renderHeader();
+
+      // Re-render shop affordability every 250ms (cheap and avoids reflow on every frame)
+      if (now - lastShopRender > 250) {
+        renderShop();
+        lastShopRender = now;
+      }
+
+      // Save every 5s
+      if (now - lastSave > 5000) {
+        save();
+        lastSave = now;
+      }
+
+      requestAnimationFrame(loop);
+    }
+
+    // ---------- Modal helpers ----------
+    const modalBack = document.getElementById('modalBack');
+    const modalTitle = document.getElementById('modalTitle');
+    const modalBody = document.getElementById('modalBody');
+    const modalOk = document.getElementById('modalOk');
+    const modalCancel = document.getElementById('modalCancel');
+    const modalInput = document.getElementById('modalInput');
+    const importText = document.getElementById('importText');
+
+    function showModal({ title, body, okText, showInput, onOk }) {
+      modalTitle.textContent = title;
+      modalBody.textContent = body;
+      modalOk.textContent = okText || 'Confirm';
+      modalInput.classList.toggle('hidden', !showInput);
+      if (showInput) importText.value = '';
+      modalBack.classList.remove('hidden');
+      const close = () => {
+        modalBack.classList.add('hidden');
+        modalOk.onclick = null;
+        modalCancel.onclick = null;
+      };
+      modalOk.onclick = () => { onOk?.(); close(); };
+      modalCancel.onclick = close;
+    }
+
+    // ---------- Toolbar ----------
+    document.getElementById('saveBtn').addEventListener('click', () => {
+      save();
+      queueToast('Saved', 'Progress written to local storage.');
+    });
+
+    document.getElementById('exportBtn').addEventListener('click', async () => {
+      save();
+      const raw = localStorage.getItem(SAVE_KEY) || '{}';
+      const encoded = btoa(unescape(encodeURIComponent(raw)));
+      try {
+        await navigator.clipboard.writeText(encoded);
+        queueToast('Copied', 'Save string is on your clipboard.');
+      } catch {
+        showModal({
+          title: 'Your save string',
+          body: 'Copy this string somewhere safe.',
+          okText: 'Done',
+          showInput: true,
+          onOk: () => {},
+        });
+        importText.value = encoded;
+      }
+    });
+
+    document.getElementById('importBtn').addEventListener('click', () => {
+      showModal({
+        title: 'Import save',
+        body: 'Paste a save string. This will overwrite your current progress.',
+        okText: 'Import',
+        showInput: true,
+        onOk: () => {
+          const v = importText.value.trim();
+          if (!v) return;
+          try {
+            const decoded = decodeURIComponent(escape(atob(v)));
+            const data = JSON.parse(decoded);
+            Object.assign(state, data);
+            BUILDINGS.forEach(b => { if (state.buildings[b.id] == null) state.buildings[b.id] = 0; });
+            if (!state.upgrades || typeof state.upgrades !== 'object') state.upgrades = {};
+            state.lastTick = Date.now();
+            save();
+            renderShop();
+            renderHeader();
+            queueToast('Imported', 'Save loaded successfully.');
+          } catch (e) {
+            queueToast('Import failed', 'That save string is not valid.');
+          }
+        },
+      });
+    });
+
+    document.getElementById('resetBtn').addEventListener('click', () => {
+      showModal({
+        title: 'Reset everything?',
+        body: 'This will erase all your pets, buildings, and upgrades. There is no undo.',
+        okText: 'Reset',
+        onOk: reset,
+      });
+    });
+
+    // Save when leaving
+    document.addEventListener('visibilitychange', () => { if (document.hidden) save(); });
+    window.addEventListener('beforeunload', save);
+
+    // ---------- Init ----------
+    load();
+    renderHeader();
+    renderShop();
+    requestAnimationFrame(loop);
+  })();
+  </script>
+</body>
+</html>

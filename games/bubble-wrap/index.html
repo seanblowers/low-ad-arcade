@@ -1,0 +1,430 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Bubble Wrap</title>
+  <meta name="description" content="A whole sheet of bubbles. Pop them all.">
+  <style>
+    :root {
+      --bg: #f4f8fc;
+      --panel: #ffffff;
+      --ink: #1d2733;
+      --muted: #7a8a9c;
+      --accent: #5aa1ff;
+      --bubble-light: #f5fbff;
+      --bubble-dark: #b8d4ee;
+      --bubble-shadow: rgba(40, 70, 110, 0.18);
+      --shadow: 0 6px 16px rgba(40, 70, 110, 0.10);
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      min-height: 100%;
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      background:
+        radial-gradient(1200px 700px at 110% -10%, #d9ecff 0%, transparent 60%),
+        radial-gradient(900px 600px at -10% 110%, #e7f3ff 0%, transparent 60%),
+        var(--bg);
+      color: var(--ink);
+      -webkit-user-select: none;
+      user-select: none;
+      touch-action: manipulation;
+      overflow-x: hidden;
+    }
+
+    .back-link {
+      position: fixed;
+      top: 12px;
+      left: 12px;
+      z-index: 60;
+      background: var(--panel);
+      color: var(--muted);
+      text-decoration: none;
+      font-size: 0.82rem;
+      padding: 6px 12px;
+      border-radius: 999px;
+      box-shadow: var(--shadow);
+      transition: color 120ms ease, transform 80ms ease;
+    }
+    .back-link:hover { color: var(--ink); }
+    .back-link:active { transform: translateY(1px); }
+
+    .topbar {
+      position: sticky;
+      top: 0;
+      z-index: 30;
+      backdrop-filter: blur(10px);
+      -webkit-backdrop-filter: blur(10px);
+      background: rgba(244, 248, 252, 0.7);
+      padding: 16px 16px 12px;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      gap: 16px;
+      border-bottom: 1px solid rgba(40, 70, 110, 0.06);
+    }
+    .topbar .title {
+      font-weight: 700;
+      letter-spacing: -0.01em;
+      font-size: 1.05rem;
+    }
+    .topbar .stats {
+      color: var(--muted);
+      font-size: 0.9rem;
+      font-variant-numeric: tabular-nums;
+    }
+    .topbar .stats b { color: var(--ink); }
+    .topbar .grow { flex: 1; }
+
+    button.btn {
+      background: var(--panel);
+      color: var(--ink);
+      border: 1px solid rgba(40, 70, 110, 0.08);
+      padding: 8px 14px;
+      border-radius: 999px;
+      font: inherit;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: transform 80ms ease, background 120ms ease;
+      box-shadow: var(--shadow);
+    }
+    button.btn:hover { background: #eaf3ff; }
+    button.btn:active { transform: translateY(1px); }
+    button.btn.primary { background: var(--accent); color: #fff; border-color: transparent; }
+    button.btn.primary:hover { background: #4a90ee; }
+
+    .sheet-wrap {
+      padding: 20px clamp(8px, 2vw, 24px) 60px;
+      display: flex;
+      justify-content: center;
+    }
+    .sheet {
+      display: grid;
+      gap: clamp(6px, 1.2vw, 12px);
+      grid-template-columns: repeat(var(--cols, 12), 1fr);
+      max-width: 900px;
+      width: 100%;
+    }
+
+    .bubble {
+      aspect-ratio: 1 / 1;
+      border: 0;
+      padding: 0;
+      cursor: pointer;
+      border-radius: 50%;
+      background:
+        radial-gradient(circle at 32% 28%, var(--bubble-light) 0%, var(--bubble-light) 14%, #e1eefb 42%, var(--bubble-dark) 90%);
+      box-shadow:
+        inset 0 -3px 6px rgba(40, 70, 110, 0.18),
+        inset 0 3px 6px rgba(255, 255, 255, 0.8),
+        0 4px 8px var(--bubble-shadow);
+      transition: transform 100ms ease, box-shadow 200ms ease, opacity 240ms ease;
+      position: relative;
+      will-change: transform, opacity;
+    }
+    .bubble::after {
+      content: "";
+      position: absolute;
+      top: 18%;
+      left: 22%;
+      width: 22%;
+      height: 22%;
+      background: rgba(255, 255, 255, 0.55);
+      border-radius: 50%;
+      filter: blur(0.4px);
+      pointer-events: none;
+    }
+    .bubble:hover { transform: scale(1.04); }
+    .bubble:active { transform: scale(0.92); }
+
+    .bubble.popped {
+      pointer-events: none;
+      background:
+        radial-gradient(circle at 50% 50%, #d8e4f1 0%, #cbd9e8 60%, #b9c8d8 100%);
+      box-shadow:
+        inset 0 1px 2px rgba(40, 70, 110, 0.25),
+        inset 0 -1px 1px rgba(255, 255, 255, 0.6);
+      transform: scale(0.78);
+      opacity: 0.85;
+      animation: pop-anim 380ms ease-out;
+    }
+    .bubble.popped::after {
+      opacity: 0;
+      transition: opacity 120ms ease;
+    }
+    @keyframes pop-anim {
+      0%   { transform: scale(1.18); }
+      35%  { transform: scale(0.62); }
+      100% { transform: scale(0.78); }
+    }
+
+    .bubble.gold {
+      background:
+        radial-gradient(circle at 32% 28%, #fff8df 0%, #ffe89a 35%, #ffcc4a 80%, #c08a16 100%);
+      box-shadow:
+        inset 0 -3px 6px rgba(120, 80, 0, 0.25),
+        inset 0 3px 6px rgba(255, 255, 255, 0.85),
+        0 4px 10px rgba(160, 110, 0, 0.25),
+        0 0 0 0 rgba(255, 215, 64, 0.45);
+      animation: shimmer 2.4s ease-in-out infinite;
+    }
+    @keyframes shimmer {
+      0%, 100% { box-shadow:
+          inset 0 -3px 6px rgba(120, 80, 0, 0.25),
+          inset 0 3px 6px rgba(255, 255, 255, 0.85),
+          0 4px 10px rgba(160, 110, 0, 0.25),
+          0 0 0 0 rgba(255, 215, 64, 0.45); }
+      50%      { box-shadow:
+          inset 0 -3px 6px rgba(120, 80, 0, 0.25),
+          inset 0 3px 6px rgba(255, 255, 255, 0.85),
+          0 4px 10px rgba(160, 110, 0, 0.25),
+          0 0 0 8px rgba(255, 215, 64, 0); }
+    }
+    .bubble.popped.gold {
+      background: radial-gradient(circle at 50% 50%, #f3e3a8 0%, #d9bf6f 60%, #b8993c 100%);
+      animation: none;
+    }
+
+    .victory {
+      position: fixed;
+      inset: 0;
+      display: grid;
+      place-items: center;
+      z-index: 80;
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 320ms ease;
+    }
+    .victory.show { opacity: 1; }
+    .victory .card {
+      background: var(--panel);
+      box-shadow: 0 18px 40px rgba(40, 70, 110, 0.18);
+      padding: 22px 28px;
+      border-radius: 18px;
+      text-align: center;
+      pointer-events: auto;
+    }
+    .victory h2 { margin: 0 0 6px; font-size: 1.4rem; }
+    .victory p { color: var(--muted); margin: 0 0 14px; }
+
+    .credit {
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.78rem;
+      padding: 24px 16px 40px;
+    }
+
+    @media (prefers-reduced-motion: reduce) {
+      .bubble, .bubble.popped, .bubble.gold { transition: none; animation: none; }
+    }
+  </style>
+</head>
+<body>
+  <a class="back-link" href="../../">← arcade</a>
+
+  <header class="topbar">
+    <span class="title">🫧 Bubble Wrap</span>
+    <span class="stats">Popped: <b id="popped">0</b> · Total: <b id="total">0</b></span>
+    <span class="grow"></span>
+    <button class="btn" id="muteBtn" aria-pressed="false" title="Mute pop sounds">🔊</button>
+    <button class="btn primary" id="refillBtn">Refill sheet</button>
+  </header>
+
+  <main class="sheet-wrap">
+    <div class="sheet" id="sheet" aria-label="Bubble sheet"></div>
+  </main>
+
+  <div class="credit">Tip: drag across bubbles to pop a row. Gold bubbles count for 5.</div>
+
+  <div class="victory" id="victory" aria-hidden="true">
+    <div class="card">
+      <h2>All popped! 🎉</h2>
+      <p>You popped every bubble. Refill for another go?</p>
+      <button class="btn primary" id="victoryRefill">Refill sheet</button>
+    </div>
+  </div>
+
+  <script>
+  (() => {
+    'use strict';
+
+    const SAVE_KEY = 'bubblewrap.v1';
+    const sheet = document.getElementById('sheet');
+    const poppedEl = document.getElementById('popped');
+    const totalEl = document.getElementById('total');
+    const refillBtn = document.getElementById('refillBtn');
+    const victoryEl = document.getElementById('victory');
+    const victoryRefill = document.getElementById('victoryRefill');
+    const muteBtn = document.getElementById('muteBtn');
+
+    let totalPopped = 0;
+    let muted = false;
+
+    // Load persisted total + mute
+    try {
+      const saved = JSON.parse(localStorage.getItem(SAVE_KEY) || '{}');
+      if (typeof saved.totalPopped === 'number') totalPopped = saved.totalPopped;
+      if (typeof saved.muted === 'boolean') muted = saved.muted;
+    } catch {}
+    updateMuteUI();
+
+    function persist() {
+      try {
+        localStorage.setItem(SAVE_KEY, JSON.stringify({ totalPopped, muted }));
+      } catch {}
+    }
+
+    // ---------- Audio ----------
+    let audioCtx = null;
+    function ensureAudio() {
+      if (audioCtx) return audioCtx;
+      try {
+        const Ctx = window.AudioContext || window.webkitAudioContext;
+        if (!Ctx) return null;
+        audioCtx = new Ctx();
+      } catch { return null; }
+      return audioCtx;
+    }
+
+    function popSound(intensity = 1) {
+      if (muted) return;
+      const ctx = ensureAudio();
+      if (!ctx) return;
+      const t = ctx.currentTime;
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.type = 'triangle';
+      const startFreq = 380 + Math.random() * 220;
+      osc.frequency.setValueAtTime(startFreq, t);
+      osc.frequency.exponentialRampToValueAtTime(80, t + 0.09);
+      const peak = 0.16 * intensity;
+      gain.gain.setValueAtTime(0.0001, t);
+      gain.gain.exponentialRampToValueAtTime(peak, t + 0.005);
+      gain.gain.exponentialRampToValueAtTime(0.0001, t + 0.12);
+      osc.connect(gain).connect(ctx.destination);
+      osc.start(t);
+      osc.stop(t + 0.14);
+    }
+
+    // ---------- Sheet generation ----------
+    function colsForViewport() {
+      const w = window.innerWidth;
+      if (w < 380) return 8;
+      if (w < 560) return 10;
+      if (w < 820) return 12;
+      if (w < 1080) return 14;
+      return 16;
+    }
+
+    function buildSheet() {
+      const cols = colsForViewport();
+      const rows = Math.max(8, Math.min(14, Math.round(cols * 0.72)));
+      sheet.style.setProperty('--cols', cols);
+      sheet.innerHTML = '';
+      const count = cols * rows;
+      const goldChance = 0.018;
+      for (let i = 0; i < count; i++) {
+        const b = document.createElement('button');
+        b.className = 'bubble' + (Math.random() < goldChance ? ' gold' : '');
+        b.type = 'button';
+        b.setAttribute('aria-label', 'bubble');
+        sheet.appendChild(b);
+      }
+      updateStats();
+      hideVictory();
+    }
+
+    // ---------- Pop logic ----------
+    function popBubble(el) {
+      if (!el || !el.classList.contains('bubble') || el.classList.contains('popped')) return;
+      const isGold = el.classList.contains('gold');
+      el.classList.add('popped');
+      const intensity = isGold ? 1.7 : 1;
+      popSound(intensity);
+      totalPopped += isGold ? 5 : 1;
+      updateStats();
+      persist();
+      if (allPopped()) showVictory();
+    }
+
+    function allPopped() {
+      return !sheet.querySelector('.bubble:not(.popped)');
+    }
+
+    function updateStats() {
+      const remaining = sheet.querySelectorAll('.bubble:not(.popped)').length;
+      const total = sheet.querySelectorAll('.bubble').length;
+      const sessionPopped = total - remaining;
+      poppedEl.textContent = sessionPopped.toLocaleString();
+      totalEl.textContent = totalPopped.toLocaleString();
+    }
+
+    function showVictory() {
+      victoryEl.classList.add('show');
+      victoryEl.setAttribute('aria-hidden', 'false');
+    }
+    function hideVictory() {
+      victoryEl.classList.remove('show');
+      victoryEl.setAttribute('aria-hidden', 'true');
+    }
+
+    // Pointer + drag-to-pop
+    let pressing = false;
+    sheet.addEventListener('pointerdown', (e) => {
+      pressing = true;
+      const t = e.target.closest('.bubble');
+      if (t) popBubble(t);
+    });
+    sheet.addEventListener('pointermove', (e) => {
+      if (!pressing) return;
+      const el = document.elementFromPoint(e.clientX, e.clientY);
+      const t = el?.closest?.('.bubble');
+      if (t) popBubble(t);
+    });
+    const stopPress = () => { pressing = false; };
+    window.addEventListener('pointerup', stopPress);
+    window.addEventListener('pointercancel', stopPress);
+
+    // Keyboard: any key pops one random remaining bubble (accessibility-ish)
+    window.addEventListener('keydown', (e) => {
+      if (e.key === 'r' || e.key === 'R') { buildSheet(); return; }
+      if (e.key === ' ') {
+        e.preventDefault();
+        const remaining = sheet.querySelectorAll('.bubble:not(.popped)');
+        if (remaining.length === 0) return;
+        popBubble(remaining[Math.floor(Math.random() * remaining.length)]);
+      }
+    });
+
+    // Buttons
+    refillBtn.addEventListener('click', buildSheet);
+    victoryRefill.addEventListener('click', buildSheet);
+    muteBtn.addEventListener('click', () => {
+      muted = !muted;
+      updateMuteUI();
+      persist();
+    });
+
+    function updateMuteUI() {
+      muteBtn.textContent = muted ? '🔇' : '🔊';
+      muteBtn.setAttribute('aria-pressed', String(muted));
+    }
+
+    // Re-layout on resize (debounced) — only when no popping in progress
+    let resizeTimer = null;
+    window.addEventListener('resize', () => {
+      clearTimeout(resizeTimer);
+      resizeTimer = setTimeout(() => {
+        // Only rebuild if column count would change
+        const desired = colsForViewport();
+        const current = parseInt(sheet.style.getPropertyValue('--cols'), 10) || 0;
+        if (desired !== current) buildSheet();
+      }, 220);
+    });
+
+    buildSheet();
+  })();
+  </script>
+</body>
+</html>

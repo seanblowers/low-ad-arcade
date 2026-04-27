@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Low-Ad Arcade</title>
+  <meta name="description" content="A small collection of custom-built browser games. No ads, no sign-ups, no nonsense.">
+  <style>
+    :root {
+      --bg: #faf7f2;
+      --panel: #ffffff;
+      --panel-2: #fbf6ee;
+      --ink: #2b2118;
+      --muted: #8a7a66;
+      --accent: #ff8aa8;
+      --shadow: 0 6px 16px rgba(60, 40, 20, 0.08);
+      --shadow-lg: 0 16px 36px rgba(60, 40, 20, 0.14);
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      min-height: 100%;
+      font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+      background:
+        radial-gradient(1200px 600px at 10% -10%, #ffe9d4 0%, transparent 60%),
+        radial-gradient(900px 500px at 110% 110%, #ffd6e2 0%, transparent 60%),
+        var(--bg);
+      color: var(--ink);
+    }
+
+    .wrap {
+      max-width: 1080px;
+      margin: 0 auto;
+      padding: 56px 20px 80px;
+    }
+
+    header.hero {
+      text-align: center;
+      margin-bottom: 40px;
+    }
+    .badge {
+      display: inline-block;
+      background: var(--panel);
+      color: var(--muted);
+      font-size: 0.78rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      padding: 6px 12px;
+      border-radius: 999px;
+      box-shadow: var(--shadow);
+      margin-bottom: 16px;
+    }
+    h1 {
+      font-size: clamp(2.2rem, 6vw, 3.6rem);
+      letter-spacing: -0.02em;
+      margin: 0 0 10px;
+    }
+    .tagline {
+      color: var(--muted);
+      font-size: clamp(1rem, 2.4vw, 1.15rem);
+      max-width: 520px;
+      margin: 0 auto;
+      line-height: 1.5;
+    }
+
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+      gap: 16px;
+      margin-top: 36px;
+    }
+
+    .card {
+      display: flex;
+      flex-direction: column;
+      background: var(--panel);
+      border-radius: 20px;
+      box-shadow: var(--shadow);
+      padding: 22px;
+      text-decoration: none;
+      color: inherit;
+      transition: transform 160ms ease, box-shadow 160ms ease;
+      position: relative;
+      overflow: hidden;
+      min-height: 220px;
+    }
+    .card::before {
+      content: "";
+      position: absolute;
+      inset: 0;
+      background: var(--card-bg, transparent);
+      opacity: 0.55;
+      z-index: 0;
+      transition: opacity 200ms ease;
+    }
+    .card > * { position: relative; z-index: 1; }
+    .card:hover { transform: translateY(-3px); box-shadow: var(--shadow-lg); }
+    .card:hover::before { opacity: 0.85; }
+
+    .card .emoji {
+      font-size: 3.4rem;
+      line-height: 1;
+      margin-bottom: 12px;
+      filter: drop-shadow(0 6px 8px rgba(0,0,0,0.06));
+    }
+    .card h2 {
+      margin: 0 0 6px;
+      font-size: 1.25rem;
+      letter-spacing: -0.01em;
+    }
+    .card p {
+      margin: 0;
+      color: var(--muted);
+      font-size: 0.92rem;
+      line-height: 1.45;
+    }
+    .card .meta {
+      margin-top: auto;
+      padding-top: 14px;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      color: var(--muted);
+      font-size: 0.78rem;
+    }
+    .pill {
+      display: inline-block;
+      background: rgba(255,255,255,0.6);
+      border: 1px solid rgba(0,0,0,0.04);
+      border-radius: 999px;
+      padding: 3px 10px;
+      font-variant-numeric: tabular-nums;
+    }
+    .play {
+      color: var(--accent);
+      font-weight: 700;
+      font-size: 0.88rem;
+    }
+
+    .card.coming {
+      opacity: 0.65;
+      cursor: not-allowed;
+      background: var(--panel-2);
+      border: 1px dashed rgba(0,0,0,0.08);
+      box-shadow: none;
+    }
+    .card.coming:hover { transform: none; box-shadow: none; }
+    .card.coming .play { color: var(--muted); }
+
+    footer {
+      margin-top: 56px;
+      text-align: center;
+      color: var(--muted);
+      font-size: 0.85rem;
+    }
+    footer a { color: inherit; }
+
+    @media (prefers-reduced-motion: reduce) {
+      .card, .card::before { transition: none; }
+    }
+  </style>
+</head>
+<body>
+  <div class="wrap">
+    <header class="hero">
+      <div class="badge">Low-Ad Arcade</div>
+      <h1>Tiny games to fiddle with.</h1>
+      <p class="tagline">Hand-made browser games. No ads, no sign-ups, no microtransactions, no "watch a video to continue." Just play.</p>
+    </header>
+
+    <main class="grid" id="grid"></main>
+
+    <footer>
+      Built lovingly with HTML, CSS, and a single &lt;script&gt; tag per game.
+      Source on <a href="https://github.com/" target="_blank" rel="noopener">GitHub</a>.
+    </footer>
+  </div>
+
+  <script>
+    const GAMES = [
+      {
+        href: 'games/bunny-clicker/',
+        emoji: '🐰',
+        title: 'Bunny Clicker',
+        blurb: 'Pet the bunny. Buy hutches. Build a cosmic empire of soft. A full idle/clicker game.',
+        tags: ['idle', 'clicker'],
+        bg: 'radial-gradient(140% 100% at 0% 0%, #ffe2eb 0%, transparent 60%)',
+      },
+      {
+        href: 'games/bubble-wrap/',
+        emoji: '🫧',
+        title: 'Bubble Wrap',
+        blurb: 'A whole sheet of bubbles. Pop them all. Refill. Repeat. Surprisingly therapeutic.',
+        tags: ['zen', 'tactile'],
+        bg: 'radial-gradient(140% 100% at 100% 0%, #d9ecff 0%, transparent 60%)',
+      },
+      {
+        href: '#',
+        emoji: '✨',
+        title: 'Something else, soon',
+        blurb: 'New games will appear here. Got a request? Open an issue.',
+        coming: true,
+        bg: 'transparent',
+      },
+    ];
+
+    const grid = document.getElementById('grid');
+    for (const g of GAMES) {
+      const card = document.createElement(g.coming ? 'div' : 'a');
+      card.className = 'card' + (g.coming ? ' coming' : '');
+      if (!g.coming) card.href = g.href;
+      card.style.setProperty('--card-bg', g.bg);
+      card.innerHTML = `
+        <div class="emoji">${g.emoji}</div>
+        <h2>${g.title}</h2>
+        <p>${g.blurb}</p>
+        <div class="meta">
+          <span>${(g.tags || ['soon']).map(t => `<span class="pill">${t}</span>`).join(' ')}</span>
+          <span class="play">${g.coming ? 'soon' : 'play →'}</span>
+        </div>
+      `;
+      grid.appendChild(card);
+    }
+  </script>
+</body>
+</html>
