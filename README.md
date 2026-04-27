@@ -47,4 +47,4 @@ the root, so players can hop between them without using the back button.
 
 Casual web games used to be a delight. Then ads ate them — interstitials, popups,
 "watch a 30-second video to continue," cookie banners stacked on cookie banners.
-This is the opposite of that.
+This is the opposite of that. You may see an occasioanl side ad to help pay for server costs. 
