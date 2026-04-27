@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Speed Math</title>
+  <style>
+    :root {
+      --bg: #fff8ed;
+      --panel: #fff;
+      --ink: #3a2a14;
+      --muted: #a98a5e;
+      --accent: #f08a2b;
+      --good: #4cae6a;
+      --bad: #c8513a;
+      --shadow: 0 8px 22px rgba(170, 110, 40, 0.12);
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0; min-height: 100%;
+      font-family: system-ui, -apple-system, sans-serif;
+      background:
+        radial-gradient(900px 500px at 110% -10%, #ffe1a4 0%, transparent 55%),
+        radial-gradient(700px 500px at -10% 110%, #ffd49b 0%, transparent 50%),
+        var(--bg);
+      color: var(--ink);
+      -webkit-user-select: none; user-select: none;
+    }
+    .back-link {
+      position: fixed; top: 12px; left: 12px; z-index: 60;
+      background: var(--panel); color: var(--muted);
+      text-decoration: none; font-size: 0.82rem;
+      padding: 6px 12px; border-radius: 999px; box-shadow: var(--shadow);
+    }
+    .wrap { min-height: 100vh; display: grid; place-items: center; padding: 60px 16px; }
+    .card { background: var(--panel); padding: 26px; border-radius: 22px; box-shadow: var(--shadow); width: min(420px, 100%); text-align: center; }
+    h1 { margin: 0 0 4px; font-size: 1.5rem; }
+    .sub { color: var(--muted); margin: 0 0 20px; font-size: 0.92rem; }
+
+    .timer-bar {
+      height: 8px; background: #fdebd1; border-radius: 999px; overflow: hidden; margin-bottom: 20px;
+    }
+    .timer-bar > div {
+      height: 100%; background: var(--accent);
+      transition: width 100ms linear;
+      width: 100%;
+    }
+
+    .question {
+      font-size: clamp(2.4rem, 8vw, 3.4rem);
+      font-weight: 800;
+      letter-spacing: -0.02em;
+      margin: 12px 0 18px;
+      font-variant-numeric: tabular-nums;
+    }
+    .feedback { min-height: 1.5em; margin: 6px 0 12px; font-size: 0.95rem; }
+    .feedback.good { color: var(--good); }
+    .feedback.bad { color: var(--bad); }
+
+    .input {
+      width: 100%; padding: 14px 18px; font-size: 1.4rem;
+      border: 2px solid #f6e4c8; border-radius: 14px;
+      text-align: center; font-variant-numeric: tabular-nums;
+      font-family: inherit; outline: none;
+      transition: border-color 120ms ease;
+      background: #fffaf1;
+      color: var(--ink);
+    }
+    .input:focus { border-color: var(--accent); }
+
+    .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 18px; }
+    .stat { background: #fff5e3; border-radius: 10px; padding: 8px; }
+    .stat .v { font-weight: 700; font-variant-numeric: tabular-nums; }
+    .stat .k { color: var(--muted); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; }
+
+    .row { display: flex; gap: 8px; justify-content: center; margin-top: 14px; flex-wrap: wrap; }
+    button.btn {
+      background: #fff5e3; border: 0; border-radius: 999px; padding: 8px 14px;
+      font: inherit; font-size: 0.85rem; cursor: pointer; color: var(--ink);
+    }
+    button.btn:hover { background: #ffe6c0; }
+    button.btn.primary { background: var(--accent); color: #fff; font-weight: 700; }
+    button.btn.primary:hover { background: #d97619; }
+
+    .end {
+      font-size: 1.1rem; font-weight: 700;
+    }
+  </style>
+</head>
+<body>
+  <a class="back-link" href="../../">← arcade</a>
+  <div class="wrap">
+    <div class="card">
+      <h1>Speed Math</h1>
+      <p class="sub" id="sub">As many as you can in 60 seconds.</p>
+      <div class="timer-bar"><div id="timerFill"></div></div>
+      <div class="question" id="question">Press start</div>
+      <div class="feedback" id="feedback">&nbsp;</div>
+      <input class="input" id="input" type="text" inputmode="numeric" pattern="-?[0-9]*" autocomplete="off" placeholder="Answer…" disabled>
+      <div class="stats">
+        <div class="stat"><div class="v" id="score">0</div><div class="k">score</div></div>
+        <div class="stat"><div class="v" id="streak">0</div><div class="k">streak</div></div>
+        <div class="stat"><div class="v" id="best">0</div><div class="k">best</div></div>
+      </div>
+      <div class="row">
+        <button class="btn primary" id="startBtn">Start</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  (() => {
+    const KEY = 'speedmath.v1';
+    const DURATION = 60;
+    const q = document.getElementById('question');
+    const inp = document.getElementById('input');
+    const fb = document.getElementById('feedback');
+    const scoreEl = document.getElementById('score');
+    const streakEl = document.getElementById('streak');
+    const bestEl = document.getElementById('best');
+    const startBtn = document.getElementById('startBtn');
+    const fill = document.getElementById('timerFill');
+    const sub = document.getElementById('sub');
+
+    let stats = { best: 0 };
+    try { Object.assign(stats, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch {}
+    bestEl.textContent = stats.best;
+
+    let score = 0, streak = 0, current = null;
+    let endsAt = 0, raf = null, running = false;
+
+    function newQ() {
+      const ops = ['+', '-', '×', '÷'];
+      const op = ops[Math.floor(Math.random() * ops.length)];
+      let a, b, ans;
+      if (op === '+') { a = rand(2, 60); b = rand(2, 60); ans = a + b; }
+      else if (op === '-') { a = rand(10, 80); b = rand(2, a - 1); ans = a - b; }
+      else if (op === '×') { a = rand(2, 12); b = rand(2, 12); ans = a * b; }
+      else { b = rand(2, 12); ans = rand(2, 12); a = b * ans; }
+      current = { a, b, op, ans };
+      q.textContent = `${a} ${op} ${b}`;
+      inp.value = '';
+      inp.focus();
+    }
+
+    function rand(lo, hi) { return Math.floor(Math.random() * (hi - lo + 1)) + lo; }
+
+    function start() {
+      score = 0; streak = 0;
+      scoreEl.textContent = '0'; streakEl.textContent = '0';
+      fb.textContent = ''; fb.className = 'feedback';
+      sub.textContent = 'As many as you can in 60 seconds.';
+      inp.disabled = false;
+      startBtn.textContent = 'Restart';
+      running = true;
+      endsAt = performance.now() + DURATION * 1000;
+      newQ();
+      tick();
+    }
+
+    function tick() {
+      const now = performance.now();
+      const remain = Math.max(0, endsAt - now);
+      fill.style.width = (remain / (DURATION * 1000) * 100).toFixed(1) + '%';
+      if (remain <= 0) return finish();
+      raf = requestAnimationFrame(tick);
+    }
+
+    function finish() {
+      running = false;
+      inp.disabled = true;
+      cancelAnimationFrame(raf);
+      fill.style.width = '0%';
+      const isBest = score > stats.best;
+      if (isBest) { stats.best = score; try { localStorage.setItem(KEY, JSON.stringify(stats)); } catch {} }
+      bestEl.textContent = stats.best;
+      q.innerHTML = `<span class="end">${isBest ? 'New best!' : 'Time!'} Score: ${score}</span>`;
+      fb.textContent = '';
+      sub.textContent = isBest ? 'You set a new personal best 🎉' : 'Press start to play again.';
+    }
+
+    inp.addEventListener('input', () => {
+      if (!running || !current) return;
+      const v = inp.value.trim();
+      if (v === '' || v === '-') return;
+      const n = parseInt(v, 10);
+      if (Number.isNaN(n)) return;
+      if (n === current.ans) {
+        score++; streak++;
+        scoreEl.textContent = score;
+        streakEl.textContent = streak;
+        fb.textContent = streak >= 5 ? `🔥 streak ${streak}` : 'Correct!';
+        fb.className = 'feedback good';
+        newQ();
+      } else if (v.length >= String(Math.abs(current.ans)).length + (current.ans < 0 ? 1 : 0)) {
+        // Wrong only if they typed enough digits
+        streak = 0;
+        streakEl.textContent = '0';
+        fb.textContent = `Was ${current.ans}.`;
+        fb.className = 'feedback bad';
+        newQ();
+      }
+    });
+
+    startBtn.addEventListener('click', start);
+  })();
+  </script>
+</body>
+</html>

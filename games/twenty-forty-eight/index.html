@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>2048</title>
+  <style>
+    :root {
+      --bg: #faf8ef;
+      --panel: #fff;
+      --board: #bbada0;
+      --cell: #cdc1b4;
+      --ink: #776e65;
+      --muted: #a39588;
+      --accent: #f59563;
+      --shadow: 0 6px 16px rgba(140, 110, 80, 0.16);
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0; min-height: 100%;
+      font-family: system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      -webkit-user-select: none; user-select: none;
+      touch-action: none;
+    }
+    .back-link {
+      position: fixed; top: 12px; left: 12px; z-index: 60;
+      background: var(--panel); color: var(--muted);
+      text-decoration: none; font-size: 0.82rem;
+      padding: 6px 12px; border-radius: 999px; box-shadow: var(--shadow);
+    }
+    .wrap { min-height: 100vh; display: grid; place-items: center; padding: 60px 16px; }
+    .card { padding: 18px; width: min(440px, 100%); text-align: center; }
+    h1 {
+      margin: 0 0 4px; font-size: 2.2rem; font-weight: 800;
+      letter-spacing: -0.02em; color: var(--ink);
+    }
+    .sub { color: var(--muted); margin: 0 0 14px; font-size: 0.92rem; min-height: 1.4em; }
+
+    .scores { display: flex; gap: 8px; justify-content: center; margin-bottom: 14px; }
+    .score-box {
+      background: var(--board); color: #fff;
+      border-radius: 8px; padding: 8px 14px; min-width: 80px;
+      box-shadow: var(--shadow);
+    }
+    .score-box .k { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.08em; opacity: 0.85; }
+    .score-box .v { font-size: 1.2rem; font-weight: 800; font-variant-numeric: tabular-nums; }
+
+    .board {
+      position: relative;
+      width: 100%; aspect-ratio: 1 / 1;
+      background: var(--board);
+      border-radius: 12px;
+      padding: 10px;
+    }
+    .grid {
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      grid-template-rows: repeat(4, 1fr);
+      gap: 10px; height: 100%;
+    }
+    .cell-bg {
+      background: var(--cell);
+      border-radius: 8px;
+    }
+    .tiles { position: absolute; inset: 10px; pointer-events: none; }
+    .tile {
+      position: absolute;
+      width: calc((100% - 30px) / 4);
+      height: calc((100% - 30px) / 4);
+      background: #eee4da;
+      color: var(--ink);
+      border-radius: 8px;
+      display: grid; place-items: center;
+      font-weight: 800;
+      font-size: clamp(1.4rem, 5vw, 2rem);
+      transition: transform 100ms ease;
+      font-variant-numeric: tabular-nums;
+    }
+    .tile.spawn { animation: spawn 200ms ease; }
+    .tile.merged { animation: merged 220ms ease; z-index: 2; }
+    @keyframes spawn { from { transform: scale(0.4); opacity: 0; } to { transform: scale(1); opacity: 1; } }
+    @keyframes merged { 0% { transform: scale(1); } 50% { transform: scale(1.2); } 100% { transform: scale(1); } }
+
+    /* Tile palette */
+    .t-2    { background: #eee4da; color: #776e65; }
+    .t-4    { background: #ede0c8; color: #776e65; }
+    .t-8    { background: #f2b179; color: #fff; }
+    .t-16   { background: #f59563; color: #fff; }
+    .t-32   { background: #f67c5f; color: #fff; }
+    .t-64   { background: #f65e3b; color: #fff; }
+    .t-128  { background: #edcf72; color: #fff; font-size: clamp(1.2rem, 4.5vw, 1.7rem); }
+    .t-256  { background: #edcc61; color: #fff; font-size: clamp(1.2rem, 4.5vw, 1.7rem); }
+    .t-512  { background: #edc850; color: #fff; font-size: clamp(1.2rem, 4.5vw, 1.7rem); }
+    .t-1024 { background: #edc53f; color: #fff; font-size: clamp(1rem, 4vw, 1.4rem); }
+    .t-2048 { background: #edc22e; color: #fff; font-size: clamp(1rem, 4vw, 1.4rem); box-shadow: 0 0 18px rgba(237,194,46,0.6); }
+    .t-big  { background: #3c3a32; color: #fff; font-size: clamp(0.9rem, 3.6vw, 1.2rem); }
+
+    .row { display: flex; gap: 8px; justify-content: center; margin-top: 14px; }
+    button.btn {
+      background: var(--board); color: #fff; border: 0; border-radius: 8px;
+      padding: 10px 16px; font: inherit; font-weight: 700; cursor: pointer;
+    }
+    button.btn:hover { background: #a59689; }
+    .hint {
+      color: var(--muted); font-size: 0.78rem; margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <a class="back-link" href="../../">← arcade</a>
+  <div class="wrap">
+    <div class="card">
+      <h1>2048</h1>
+      <div class="scores">
+        <div class="score-box"><div class="k">Score</div><div class="v" id="score">0</div></div>
+        <div class="score-box"><div class="k">Best</div><div class="v" id="best">0</div></div>
+      </div>
+      <p class="sub" id="sub">Slide to combine. Reach 2048.</p>
+      <div class="board">
+        <div class="grid" id="grid"></div>
+        <div class="tiles" id="tiles"></div>
+      </div>
+      <div class="row">
+        <button class="btn" id="newBtn">New game</button>
+      </div>
+      <div class="hint">Arrow keys, WASD, or swipe.</div>
+    </div>
+  </div>
+
+  <script>
+  (() => {
+    const KEY = 'twenty48.v1';
+    const N = 4;
+    const grid = document.getElementById('grid');
+    const tilesEl = document.getElementById('tiles');
+    const scoreEl = document.getElementById('score');
+    const bestEl = document.getElementById('best');
+    const sub = document.getElementById('sub');
+
+    let stats = { best: 0 };
+    try { Object.assign(stats, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch {}
+    bestEl.textContent = stats.best;
+
+    // Grid backdrop
+    for (let i = 0; i < N * N; i++) {
+      const c = document.createElement('div');
+      c.className = 'cell-bg';
+      grid.appendChild(c);
+    }
+
+    let board = []; // 2D N x N of {value} or null
+    let score = 0;
+    let won = false, lost = false;
+
+    function newGame() {
+      board = Array.from({ length: N }, () => Array(N).fill(null));
+      score = 0;
+      won = false; lost = false;
+      addRandom(); addRandom();
+      sub.textContent = 'Slide to combine. Reach 2048.';
+      render();
+    }
+
+    function addRandom() {
+      const empty = [];
+      for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) if (!board[r][c]) empty.push([r, c]);
+      if (!empty.length) return;
+      const [r, c] = empty[Math.floor(Math.random() * empty.length)];
+      board[r][c] = { v: Math.random() < 0.9 ? 2 : 4, spawn: true };
+    }
+
+    function render() {
+      tilesEl.innerHTML = '';
+      const gap = 10;
+      for (let r = 0; r < N; r++) {
+        for (let c = 0; c < N; c++) {
+          const t = board[r][c];
+          if (!t) continue;
+          const el = document.createElement('div');
+          const klass = t.v <= 2048 ? `t-${t.v}` : 't-big';
+          el.className = 'tile ' + klass + (t.spawn ? ' spawn' : '') + (t.merged ? ' merged' : '');
+          el.textContent = t.v;
+          el.style.left = `calc((100% - ${gap * 3}px) / 4 * ${c} + ${gap * c}px)`;
+          el.style.top = `calc((100% - ${gap * 3}px) / 4 * ${r} + ${gap * r}px)`;
+          tilesEl.appendChild(el);
+          t.spawn = false; t.merged = false;
+        }
+      }
+      scoreEl.textContent = score;
+      if (score > stats.best) {
+        stats.best = score;
+        try { localStorage.setItem(KEY, JSON.stringify(stats)); } catch {}
+      }
+      bestEl.textContent = stats.best;
+    }
+
+    function move(dx, dy) {
+      if (lost) return;
+      // For each row/col in correct order, slide
+      const order = [];
+      for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) order.push([r, c]);
+      // Sort: tiles closest to direction of travel first
+      order.sort(([r1, c1], [r2, c2]) => {
+        if (dx === 1) return c2 - c1;
+        if (dx === -1) return c1 - c2;
+        if (dy === 1) return r2 - r1;
+        return r1 - r2;
+      });
+
+      let moved = false;
+      let mergedThisMove = Array.from({ length: N }, () => Array(N).fill(false));
+
+      for (const [r, c] of order) {
+        const t = board[r][c];
+        if (!t) continue;
+        let nr = r, nc = c;
+        while (true) {
+          const tr = nr + dy, tc = nc + dx;
+          if (tr < 0 || tr >= N || tc < 0 || tc >= N) break;
+          const target = board[tr][tc];
+          if (!target) {
+            board[tr][tc] = t;
+            board[nr][nc] = null;
+            nr = tr; nc = tc; moved = true;
+          } else if (target.v === t.v && !mergedThisMove[tr][tc] && !mergedThisMove[nr][nc]) {
+            board[tr][tc] = { v: t.v * 2, merged: true };
+            mergedThisMove[tr][tc] = true;
+            board[nr][nc] = null;
+            score += t.v * 2;
+            if (t.v * 2 === 2048 && !won) {
+              won = true;
+              sub.textContent = 'You reached 2048! Keep going for higher.';
+            }
+            moved = true;
+            break;
+          } else break;
+        }
+      }
+
+      if (moved) {
+        addRandom();
+        render();
+        if (isLost()) {
+          lost = true;
+          sub.textContent = `No moves left. Final: ${score}.`;
+        }
+      }
+    }
+
+    function isLost() {
+      for (let r = 0; r < N; r++) for (let c = 0; c < N; c++) {
+        if (!board[r][c]) return false;
+        const v = board[r][c].v;
+        if (r + 1 < N && board[r+1][c]?.v === v) return false;
+        if (c + 1 < N && board[r][c+1]?.v === v) return false;
+      }
+      return true;
+    }
+
+    const map = {
+      ArrowUp:    [0, -1], ArrowDown:  [0, 1], ArrowLeft:  [-1, 0], ArrowRight: [1, 0],
+      w:[0,-1], a:[-1,0], s:[0,1], d:[1,0],
+      W:[0,-1], A:[-1,0], S:[0,1], D:[1,0],
+    };
+    window.addEventListener('keydown', (e) => {
+      const m = map[e.key];
+      if (!m) return;
+      e.preventDefault();
+      move(m[0], m[1]);
+    });
+
+    // Touch swipe
+    let touchStart = null;
+    document.querySelector('.board').addEventListener('pointerdown', (e) => {
+      touchStart = { x: e.clientX, y: e.clientY };
+    });
+    document.querySelector('.board').addEventListener('pointerup', (e) => {
+      if (!touchStart) return;
+      const dx = e.clientX - touchStart.x, dy = e.clientY - touchStart.y;
+      touchStart = null;
+      if (Math.abs(dx) < 24 && Math.abs(dy) < 24) return;
+      if (Math.abs(dx) > Math.abs(dy)) move(dx > 0 ? 1 : -1, 0);
+      else move(0, dy > 0 ? 1 : -1);
+    });
+
+    document.getElementById('newBtn').addEventListener('click', newGame);
+    newGame();
+  })();
+  </script>
+</body>
+</html>

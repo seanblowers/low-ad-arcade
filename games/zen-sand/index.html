@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Zen Sand</title>
+  <style>
+    :root {
+      --bg: #f3ead5;
+      --sand-light: #f6ecd1;
+      --sand-dark: #d4b783;
+      --groove: #8d6f3a;
+      --panel: #fffaee;
+      --ink: #4a3517;
+      --muted: #9c8557;
+      --accent: #c8985d;
+      --shadow: 0 8px 22px rgba(140, 100, 50, 0.18);
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0; min-height: 100%;
+      font-family: system-ui, -apple-system, sans-serif;
+      background: var(--bg);
+      color: var(--ink);
+      -webkit-user-select: none; user-select: none;
+      touch-action: none;
+      overflow: hidden;
+    }
+    .back-link {
+      position: fixed; top: 12px; left: 12px; z-index: 60;
+      background: var(--panel); color: var(--muted);
+      text-decoration: none; font-size: 0.82rem;
+      padding: 6px 12px; border-radius: 999px; box-shadow: var(--shadow);
+    }
+
+    .toolbar {
+      position: fixed; top: 12px; right: 12px;
+      z-index: 60;
+      display: flex; gap: 6px; flex-wrap: wrap;
+      max-width: calc(100vw - 32px);
+      justify-content: flex-end;
+    }
+    .tool {
+      background: var(--panel); color: var(--muted);
+      border: 0; border-radius: 999px;
+      font: inherit; font-size: 0.82rem;
+      padding: 6px 12px; cursor: pointer;
+      box-shadow: var(--shadow);
+    }
+    .tool.active { background: var(--accent); color: #fff; }
+    .tool:hover { color: var(--ink); }
+    .tool.active:hover { color: #fff; }
+
+    canvas { position: fixed; inset: 0; width: 100vw; height: 100vh; touch-action: none; cursor: crosshair; }
+
+    .hint {
+      position: fixed;
+      bottom: 14px; left: 50%; transform: translateX(-50%);
+      color: var(--muted);
+      font-size: 0.82rem;
+      background: rgba(255, 250, 238, 0.7);
+      padding: 6px 14px;
+      border-radius: 999px;
+      backdrop-filter: blur(8px);
+      pointer-events: none;
+      box-shadow: var(--shadow);
+    }
+  </style>
+</head>
+<body>
+  <a class="back-link" href="../../">← arcade</a>
+  <div class="toolbar">
+    <button class="tool active" id="rakeBtn">🪮 Rake</button>
+    <button class="tool" id="stoneBtn">🪨 Stone</button>
+    <button class="tool" id="smoothBtn">Smooth</button>
+  </div>
+  <canvas id="cv"></canvas>
+  <div class="hint" id="hint">Drag to rake. Click for stones.</div>
+
+  <script>
+  (() => {
+    const cv = document.getElementById('cv');
+    const ctx = cv.getContext('2d');
+    const rakeBtn = document.getElementById('rakeBtn');
+    const stoneBtn = document.getElementById('stoneBtn');
+    const smoothBtn = document.getElementById('smoothBtn');
+    const hint = document.getElementById('hint');
+
+    let dpr = window.devicePixelRatio || 1;
+    let W = 0, H = 0;
+    let tool = 'rake';
+    let stones = [];
+    let drawing = false;
+    let lastPt = null;
+
+    function resize() {
+      dpr = window.devicePixelRatio || 1;
+      W = window.innerWidth; H = window.innerHeight;
+      cv.width = W * dpr; cv.height = H * dpr;
+      cv.style.width = W + 'px'; cv.style.height = H + 'px';
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+      drawSand();
+      stones.forEach(drawStone);
+    }
+    window.addEventListener('resize', resize);
+
+    function drawSand() {
+      // Sandy texture: gradient + noise speckles
+      const grd = ctx.createLinearGradient(0, 0, W, H);
+      grd.addColorStop(0, '#f6ecd1');
+      grd.addColorStop(1, '#e8d6a8');
+      ctx.fillStyle = grd;
+      ctx.fillRect(0, 0, W, H);
+      // dots
+      const id = ctx.getImageData(0, 0, Math.min(W, 1200), Math.min(H, 1200));
+      const data = id.data;
+      for (let i = 0; i < data.length; i += 4) {
+        const n = (Math.random() - 0.5) * 14;
+        data[i]   = clamp(data[i]   + n);
+        data[i+1] = clamp(data[i+1] + n * 0.9);
+        data[i+2] = clamp(data[i+2] + n * 0.8);
+      }
+      ctx.putImageData(id, 0, 0);
+    }
+    function clamp(v) { return v < 0 ? 0 : v > 255 ? 255 : v; }
+
+    function drawStone(s) {
+      ctx.save();
+      // shadow ring (stone displacement on sand)
+      const grad = ctx.createRadialGradient(s.x, s.y, s.r * 0.6, s.x, s.y, s.r * 1.6);
+      grad.addColorStop(0, 'rgba(80,55,20,0.35)');
+      grad.addColorStop(1, 'rgba(80,55,20,0)');
+      ctx.fillStyle = grad;
+      ctx.beginPath(); ctx.arc(s.x, s.y, s.r * 1.6, 0, Math.PI * 2); ctx.fill();
+
+      // stone gradient
+      const sg = ctx.createRadialGradient(s.x - s.r * 0.4, s.y - s.r * 0.4, 1, s.x, s.y, s.r);
+      sg.addColorStop(0, '#a8a39a');
+      sg.addColorStop(1, '#5a5751');
+      ctx.fillStyle = sg;
+      ctx.beginPath(); ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2); ctx.fill();
+
+      // little highlight
+      ctx.fillStyle = 'rgba(255,255,255,0.18)';
+      ctx.beginPath(); ctx.arc(s.x - s.r * 0.4, s.y - s.r * 0.4, s.r * 0.3, 0, Math.PI * 2); ctx.fill();
+      ctx.restore();
+
+      // ripple rings around stone
+      drawRipples(s);
+    }
+
+    function drawRipples(s) {
+      ctx.save();
+      ctx.lineCap = 'round';
+      for (let i = 1; i <= 4; i++) {
+        const r = s.r * 1.6 + i * 16;
+        ctx.strokeStyle = `rgba(141,111,58,${0.18 - i * 0.025})`;
+        ctx.lineWidth = 1.4;
+        ctx.beginPath(); ctx.arc(s.x, s.y, r, 0, Math.PI * 2); ctx.stroke();
+      }
+      ctx.restore();
+    }
+
+    function rakeBetween(a, b) {
+      const dx = b.x - a.x, dy = b.y - a.y;
+      const dist = Math.hypot(dx, dy);
+      if (dist < 1) return;
+      const angle = Math.atan2(dy, dx);
+      const teeth = 7;
+      const width = 26;
+      ctx.save();
+      ctx.lineCap = 'round';
+      ctx.lineWidth = 1.5;
+      for (let t = 0; t < teeth; t++) {
+        const off = (t / (teeth - 1) - 0.5) * width;
+        const ox = -Math.sin(angle) * off;
+        const oy = Math.cos(angle) * off;
+        // dark groove
+        ctx.strokeStyle = 'rgba(100, 75, 30, 0.35)';
+        ctx.beginPath();
+        ctx.moveTo(a.x + ox, a.y + oy);
+        ctx.lineTo(b.x + ox, b.y + oy);
+        ctx.stroke();
+        // light highlight
+        ctx.strokeStyle = 'rgba(255, 240, 210, 0.6)';
+        ctx.lineWidth = 0.8;
+        ctx.beginPath();
+        ctx.moveTo(a.x + ox + 0.6, a.y + oy + 0.6);
+        ctx.lineTo(b.x + ox + 0.6, b.y + oy + 0.6);
+        ctx.stroke();
+        ctx.lineWidth = 1.5;
+      }
+      ctx.restore();
+    }
+
+    function dropStone(x, y) {
+      const r = 14 + Math.random() * 14;
+      const s = { x, y, r };
+      stones.push(s);
+      drawStone(s);
+    }
+
+    cv.addEventListener('pointerdown', (e) => {
+      cv.setPointerCapture?.(e.pointerId);
+      const pt = { x: e.clientX, y: e.clientY };
+      if (tool === 'rake') {
+        drawing = true;
+        lastPt = pt;
+      } else if (tool === 'stone') {
+        dropStone(pt.x, pt.y);
+      }
+    });
+    cv.addEventListener('pointermove', (e) => {
+      if (!drawing) return;
+      const pt = { x: e.clientX, y: e.clientY };
+      rakeBetween(lastPt, pt);
+      lastPt = pt;
+    });
+    const stop = () => { drawing = false; lastPt = null; };
+    cv.addEventListener('pointerup', stop);
+    cv.addEventListener('pointercancel', stop);
+
+    function setTool(t) {
+      tool = t;
+      rakeBtn.classList.toggle('active', t === 'rake');
+      stoneBtn.classList.toggle('active', t === 'stone');
+      hint.textContent = t === 'rake' ? 'Drag to rake.' : 'Tap to drop a stone.';
+      cv.style.cursor = t === 'rake' ? 'crosshair' : 'pointer';
+    }
+    rakeBtn.addEventListener('click', () => setTool('rake'));
+    stoneBtn.addEventListener('click', () => setTool('stone'));
+    smoothBtn.addEventListener('click', () => {
+      stones = [];
+      drawSand();
+    });
+
+    // Hide hint after a bit
+    setTimeout(() => { hint.style.opacity = '0'; hint.style.transition = 'opacity 800ms ease'; }, 4000);
+    setTimeout(() => { hint.remove(); }, 5200);
+
+    resize();
+  })();
+  </script>
+</body>
+</html>

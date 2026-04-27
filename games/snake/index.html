@@ -1,0 +1,251 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Snake</title>
+  <style>
+    :root {
+      --bg: #0f1d12;
+      --panel: #143020;
+      --board: #1c3527;
+      --board-2: #1f3a2c;
+      --ink: #e2f5e7;
+      --muted: #88a899;
+      --accent: #8be08e;
+      --snake: #b9f7c0;
+      --snake-head: #ffe680;
+      --food: #ff7a8c;
+      --shadow: 0 18px 40px rgba(0,0,0,0.4);
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0; min-height: 100%;
+      font-family: system-ui, -apple-system, sans-serif;
+      background:
+        radial-gradient(900px 500px at 110% -10%, #1f4a30 0%, transparent 55%),
+        var(--bg);
+      color: var(--ink);
+      -webkit-user-select: none; user-select: none;
+      touch-action: none;
+    }
+    .back-link {
+      position: fixed; top: 12px; left: 12px; z-index: 60;
+      background: var(--panel); color: var(--muted);
+      text-decoration: none; font-size: 0.82rem;
+      padding: 6px 12px; border-radius: 999px; box-shadow: var(--shadow);
+    }
+    .wrap { min-height: 100vh; display: grid; place-items: center; padding: 60px 16px; }
+    .card { background: var(--panel); padding: 22px; border-radius: 22px; box-shadow: var(--shadow); width: min(540px, 100%); text-align: center; }
+    h1 { margin: 0 0 4px; font-size: 1.5rem; }
+    .sub { color: var(--muted); margin: 0 0 14px; font-size: 0.92rem; min-height: 1.4em; }
+
+    canvas { width: 100%; height: auto; image-rendering: pixelated; border-radius: 14px; display: block; background: var(--board); }
+
+    .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 14px; }
+    .stat { background: rgba(255,255,255,0.05); border-radius: 10px; padding: 8px; }
+    .stat .v { font-weight: 700; font-variant-numeric: tabular-nums; }
+    .stat .k { color: var(--muted); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; }
+
+    .row { display: flex; gap: 8px; justify-content: center; margin-top: 14px; flex-wrap: wrap; }
+    button.btn {
+      background: rgba(255,255,255,0.06); border: 0; border-radius: 999px; padding: 8px 14px;
+      font: inherit; font-size: 0.85rem; cursor: pointer; color: var(--ink);
+    }
+    button.btn:hover { background: rgba(255,255,255,0.12); }
+    button.btn.primary { background: var(--accent); color: #0e2c14; font-weight: 700; }
+    button.btn.primary:hover { background: #6dcf78; }
+
+    .speed-toggle { display: flex; gap: 6px; justify-content: center; margin-top: 8px; }
+    .speed-toggle .opt { background: rgba(255,255,255,0.05); padding: 4px 10px; border-radius: 999px; font-size: 0.78rem; cursor: pointer; color: var(--muted); }
+    .speed-toggle .opt.active { background: var(--accent); color: #0e2c14; font-weight: 700; }
+
+    .controls-hint {
+      color: var(--muted); font-size: 0.78rem; margin-top: 10px;
+    }
+  </style>
+</head>
+<body>
+  <a class="back-link" href="../../">← arcade</a>
+  <div class="wrap">
+    <div class="card">
+      <h1>Snake</h1>
+      <p class="sub" id="sub">Arrow keys, WASD, or swipe.</p>
+      <canvas id="cv" width="320" height="320"></canvas>
+      <div class="stats">
+        <div class="stat"><div class="v" id="score">0</div><div class="k">score</div></div>
+        <div class="stat"><div class="v" id="length">3</div><div class="k">length</div></div>
+        <div class="stat"><div class="v" id="best">0</div><div class="k">best</div></div>
+      </div>
+      <div class="speed-toggle">
+        <span class="opt" data-s="slow">slow</span>
+        <span class="opt active" data-s="normal">normal</span>
+        <span class="opt" data-s="fast">fast</span>
+      </div>
+      <div class="row">
+        <button class="btn primary" id="startBtn">New game</button>
+      </div>
+      <div class="controls-hint">Eat 🍓. Don't hit yourself.</div>
+    </div>
+  </div>
+
+  <script>
+  (() => {
+    const KEY = 'snake.v1';
+    const cv = document.getElementById('cv');
+    const ctx = cv.getContext('2d');
+    const W = 20, H = 20, CELL = 16;
+    cv.width = W * CELL; cv.height = H * CELL;
+
+    const scoreEl = document.getElementById('score');
+    const lengthEl = document.getElementById('length');
+    const bestEl = document.getElementById('best');
+    const sub = document.getElementById('sub');
+    const startBtn = document.getElementById('startBtn');
+
+    let stats = { best: 0, speed: 'normal' };
+    try { Object.assign(stats, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch {}
+    bestEl.textContent = stats.best;
+    document.querySelectorAll('.speed-toggle .opt').forEach(o => {
+      o.classList.toggle('active', o.dataset.s === stats.speed);
+      o.addEventListener('click', () => {
+        stats.speed = o.dataset.s; save();
+        document.querySelectorAll('.speed-toggle .opt').forEach(x => x.classList.toggle('active', x === o));
+        if (running) reset();
+      });
+    });
+    function save() { try { localStorage.setItem(KEY, JSON.stringify(stats)); } catch {} }
+
+    const SPEEDS = { slow: 160, normal: 110, fast: 70 };
+
+    let snake, dir, queuedDir, food, score, running, lastTick;
+
+    function reset() {
+      snake = [{ x: 10, y: 10 }, { x: 9, y: 10 }, { x: 8, y: 10 }];
+      dir = { x: 1, y: 0 };
+      queuedDir = dir;
+      placeFood();
+      score = 0;
+      running = true;
+      lastTick = performance.now();
+      sub.textContent = 'Arrow keys, WASD, or swipe.';
+      scoreEl.textContent = '0';
+      lengthEl.textContent = snake.length;
+      requestAnimationFrame(loop);
+    }
+
+    function placeFood() {
+      const occ = new Set(snake.map(s => s.x + ',' + s.y));
+      while (true) {
+        const x = Math.floor(Math.random() * W);
+        const y = Math.floor(Math.random() * H);
+        if (!occ.has(x + ',' + y)) { food = { x, y }; return; }
+      }
+    }
+
+    function tick() {
+      // Apply queued direction (avoid 180s)
+      if (queuedDir.x !== -dir.x || queuedDir.y !== -dir.y) dir = queuedDir;
+      const head = { x: snake[0].x + dir.x, y: snake[0].y + dir.y };
+      // Wall
+      if (head.x < 0 || head.x >= W || head.y < 0 || head.y >= H) return die();
+      // Self
+      for (const s of snake) if (s.x === head.x && s.y === head.y) return die();
+      snake.unshift(head);
+      if (head.x === food.x && head.y === food.y) {
+        score++;
+        scoreEl.textContent = score;
+        lengthEl.textContent = snake.length;
+        placeFood();
+      } else {
+        snake.pop();
+      }
+    }
+
+    function loop(now) {
+      if (!running) return;
+      const interval = SPEEDS[stats.speed];
+      while (now - lastTick >= interval) {
+        tick();
+        lastTick += interval;
+        if (!running) break;
+      }
+      draw();
+      requestAnimationFrame(loop);
+    }
+
+    function draw() {
+      // bg checker
+      for (let y = 0; y < H; y++) {
+        for (let x = 0; x < W; x++) {
+          ctx.fillStyle = (x + y) % 2 === 0 ? '#1c3527' : '#1f3a2c';
+          ctx.fillRect(x * CELL, y * CELL, CELL, CELL);
+        }
+      }
+      // food
+      const f = food;
+      ctx.fillStyle = '#ff7a8c';
+      const cx = f.x * CELL + CELL / 2;
+      const cy = f.y * CELL + CELL / 2;
+      ctx.beginPath(); ctx.arc(cx, cy, CELL * 0.35, 0, Math.PI * 2); ctx.fill();
+      // snake
+      for (let i = 0; i < snake.length; i++) {
+        const s = snake[i];
+        ctx.fillStyle = i === 0 ? '#ffe680' : '#b9f7c0';
+        const r = i === 0 ? 4 : 3;
+        roundRect(ctx, s.x * CELL + 1, s.y * CELL + 1, CELL - 2, CELL - 2, r);
+        ctx.fill();
+      }
+    }
+
+    function roundRect(ctx, x, y, w, h, r) {
+      ctx.beginPath();
+      ctx.moveTo(x + r, y);
+      ctx.lineTo(x + w - r, y); ctx.quadraticCurveTo(x + w, y, x + w, y + r);
+      ctx.lineTo(x + w, y + h - r); ctx.quadraticCurveTo(x + w, y + h, x + w - r, y + h);
+      ctx.lineTo(x + r, y + h); ctx.quadraticCurveTo(x, y + h, x, y + h - r);
+      ctx.lineTo(x, y + r); ctx.quadraticCurveTo(x, y, x + r, y);
+      ctx.closePath();
+    }
+
+    function die() {
+      running = false;
+      if (score > stats.best) { stats.best = score; save(); bestEl.textContent = score; sub.textContent = `New best — ${score}! 🎉`; }
+      else sub.textContent = `Game over. Score ${score}. Press start.`;
+      draw();
+    }
+
+    // Input
+    const map = {
+      ArrowUp: { x: 0, y: -1 }, w: { x: 0, y: -1 }, W: { x: 0, y: -1 },
+      ArrowDown: { x: 0, y: 1 }, s: { x: 0, y: 1 }, S: { x: 0, y: 1 },
+      ArrowLeft: { x: -1, y: 0 }, a: { x: -1, y: 0 }, A: { x: -1, y: 0 },
+      ArrowRight: { x: 1, y: 0 }, d: { x: 1, y: 0 }, D: { x: 1, y: 0 },
+    };
+    window.addEventListener('keydown', (e) => {
+      if (map[e.key]) { e.preventDefault(); queuedDir = map[e.key]; }
+    });
+
+    // Touch swipe
+    let touchStart = null;
+    cv.addEventListener('pointerdown', (e) => { touchStart = { x: e.clientX, y: e.clientY }; });
+    cv.addEventListener('pointerup', (e) => {
+      if (!touchStart) return;
+      const dx = e.clientX - touchStart.x, dy = e.clientY - touchStart.y;
+      if (Math.abs(dx) < 16 && Math.abs(dy) < 16) return;
+      if (Math.abs(dx) > Math.abs(dy)) queuedDir = { x: dx > 0 ? 1 : -1, y: 0 };
+      else queuedDir = { x: 0, y: dy > 0 ? 1 : -1 };
+      touchStart = null;
+    });
+
+    startBtn.addEventListener('click', reset);
+
+    // Initial render
+    snake = [{ x: 10, y: 10 }];
+    food = { x: 5, y: 5 };
+    draw();
+    sub.textContent = 'Press start.';
+  })();
+  </script>
+</body>
+</html>

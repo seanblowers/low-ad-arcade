@@ -1,0 +1,190 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Lights Out</title>
+  <style>
+    :root {
+      --bg: #0d2027;
+      --panel: #143038;
+      --ink: #e7f7ee;
+      --muted: #93b8b6;
+      --accent: #5be0c4;
+      --on: #fff2a8;
+      --off: #1d3b44;
+      --shadow: 0 18px 40px rgba(0,0,0,0.4);
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0; min-height: 100%;
+      font-family: system-ui, -apple-system, sans-serif;
+      background:
+        radial-gradient(900px 500px at 110% -10%, #1d4f4d 0%, transparent 60%),
+        radial-gradient(700px 500px at -10% 110%, #2a4a5e 0%, transparent 60%),
+        var(--bg);
+      color: var(--ink);
+      -webkit-user-select: none; user-select: none;
+    }
+    .back-link {
+      position: fixed; top: 12px; left: 12px; z-index: 60;
+      background: var(--panel); color: var(--muted);
+      text-decoration: none; font-size: 0.82rem;
+      padding: 6px 12px; border-radius: 999px; box-shadow: var(--shadow);
+    }
+    .wrap { min-height: 100vh; display: grid; place-items: center; padding: 60px 16px; }
+    .card { background: var(--panel); padding: 22px; border-radius: 22px; box-shadow: var(--shadow); width: min(420px, 100%); text-align: center; }
+    h1 { margin: 0 0 4px; font-size: 1.5rem; }
+    .sub { color: var(--muted); margin: 0 0 16px; font-size: 0.92rem; }
+
+    .board { display: grid; gap: 8px; aspect-ratio: 1 / 1; }
+    .cell {
+      border-radius: 12px;
+      background: var(--off);
+      box-shadow: inset 0 2px 4px rgba(0,0,0,0.3);
+      cursor: pointer;
+      transition: background 160ms ease, transform 100ms ease, box-shadow 160ms ease;
+    }
+    .cell.on {
+      background: var(--on);
+      box-shadow: 0 0 14px rgba(255, 232, 130, 0.55), inset 0 0 12px rgba(255, 255, 255, 0.5);
+    }
+    .cell:hover { transform: scale(1.04); }
+    .cell:active { transform: scale(0.94); }
+
+    .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 14px; }
+    .stat { background: rgba(255,255,255,0.05); border-radius: 10px; padding: 8px; }
+    .stat .v { font-weight: 700; font-variant-numeric: tabular-nums; }
+    .stat .k { color: var(--muted); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; }
+
+    .row { display: flex; gap: 8px; justify-content: center; margin-top: 14px; flex-wrap: wrap; }
+    button.btn {
+      background: rgba(255,255,255,0.06); border: 0; border-radius: 999px; padding: 8px 14px;
+      font: inherit; font-size: 0.85rem; cursor: pointer; color: var(--ink);
+    }
+    button.btn:hover { background: rgba(255,255,255,0.12); }
+    button.btn.primary { background: var(--accent); color: #08222a; font-weight: 700; }
+    button.btn.primary:hover { background: #44ccab; }
+
+    .size-toggle { display: flex; gap: 6px; justify-content: center; margin-top: 8px; }
+    .size-toggle .opt { background: rgba(255,255,255,0.05); padding: 4px 10px; border-radius: 999px; font-size: 0.78rem; cursor: pointer; color: var(--muted); }
+    .size-toggle .opt.active { background: var(--accent); color: #08222a; font-weight: 700; }
+
+    .win {
+      color: var(--accent);
+      font-weight: 700;
+      animation: glow 1.6s ease-in-out;
+    }
+    @keyframes glow { 0%, 100% { opacity: 1; } 50% { opacity: 0.5; } }
+  </style>
+</head>
+<body>
+  <a class="back-link" href="../../">← arcade</a>
+  <div class="wrap">
+    <div class="card">
+      <h1>Lights Out</h1>
+      <p class="sub" id="sub">Turn off all the lights. Clicking a tile toggles it and its neighbors.</p>
+      <div class="board" id="board"></div>
+      <div class="stats">
+        <div class="stat"><div class="v" id="moves">0</div><div class="k">moves</div></div>
+        <div class="stat"><div class="v" id="lit">0</div><div class="k">lit</div></div>
+        <div class="stat"><div class="v" id="best">—</div><div class="k">best moves</div></div>
+      </div>
+      <div class="size-toggle">
+        <span class="opt" data-n="3">3×3</span>
+        <span class="opt active" data-n="5">5×5</span>
+        <span class="opt" data-n="7">7×7</span>
+      </div>
+      <div class="row">
+        <button class="btn primary" id="newBtn">New puzzle</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  (() => {
+    const KEY = 'lightsout.v1';
+    const boardEl = document.getElementById('board');
+    const movesEl = document.getElementById('moves');
+    const litEl = document.getElementById('lit');
+    const bestEl = document.getElementById('best');
+    const sub = document.getElementById('sub');
+
+    let n = 5;
+    let board = [];
+    let moves = 0;
+    let stats = { best: {} };
+    try { Object.assign(stats, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch {}
+
+    function save() { try { localStorage.setItem(KEY, JSON.stringify(stats)); } catch {} }
+
+    function render() {
+      boardEl.style.gridTemplateColumns = `repeat(${n}, 1fr)`;
+      boardEl.innerHTML = '';
+      for (let i = 0; i < n*n; i++) {
+        const c = document.createElement('div');
+        c.className = 'cell' + (board[i] ? ' on' : '');
+        c.addEventListener('click', () => press(i));
+        boardEl.appendChild(c);
+      }
+      movesEl.textContent = moves;
+      litEl.textContent = board.filter(Boolean).length;
+      bestEl.textContent = stats.best[n] != null ? stats.best[n] : '—';
+    }
+
+    function press(i) {
+      const r = Math.floor(i / n), c = i % n;
+      const toggle = (rr, cc) => {
+        if (rr < 0 || rr >= n || cc < 0 || cc >= n) return;
+        board[rr*n + cc] = !board[rr*n + cc];
+      };
+      toggle(r, c);
+      toggle(r-1, c);
+      toggle(r+1, c);
+      toggle(r, c-1);
+      toggle(r, c+1);
+      moves++;
+      render();
+      if (board.every(x => !x)) {
+        sub.innerHTML = `<span class="win">All out in ${moves} moves! ✨</span>`;
+        if (stats.best[n] == null || moves < stats.best[n]) {
+          stats.best[n] = moves; save();
+          render();
+        }
+      }
+    }
+
+    function newPuzzle() {
+      board = Array(n*n).fill(false);
+      // Apply random presses to ensure solvability
+      const presses = 6 + Math.floor(Math.random() * Math.max(4, n*2));
+      for (let k = 0; k < presses; k++) {
+        const i = Math.floor(Math.random() * n * n);
+        const r = Math.floor(i / n), c = i % n;
+        const t = (rr, cc) => {
+          if (rr < 0 || rr >= n || cc < 0 || cc >= n) return;
+          board[rr*n + cc] = !board[rr*n + cc];
+        };
+        t(r,c); t(r-1,c); t(r+1,c); t(r,c-1); t(r,c+1);
+      }
+      // Ensure not already solved
+      if (board.every(x => !x)) board[Math.floor(Math.random() * n*n)] = true;
+      moves = 0;
+      sub.textContent = 'Turn off all the lights. Clicking a tile toggles it and its neighbors.';
+      render();
+    }
+
+    document.querySelectorAll('.size-toggle .opt').forEach(o => {
+      o.addEventListener('click', () => {
+        n = parseInt(o.dataset.n, 10);
+        document.querySelectorAll('.size-toggle .opt').forEach(x => x.classList.toggle('active', x === o));
+        newPuzzle();
+      });
+    });
+    document.getElementById('newBtn').addEventListener('click', newPuzzle);
+
+    newPuzzle();
+  })();
+  </script>
+</body>
+</html>

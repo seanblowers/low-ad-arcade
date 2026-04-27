@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Whack-a-Mole</title>
+  <style>
+    :root {
+      --bg: #f3f7e9;
+      --grass: #8fbf6c;
+      --grass-dark: #6fa055;
+      --dirt: #6b4a30;
+      --dirt-dark: #4d331f;
+      --panel: #fff;
+      --ink: #2b3a1f;
+      --muted: #7d8a68;
+      --accent: #5a8f3c;
+      --shadow: 0 8px 22px rgba(40, 80, 30, 0.12);
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0; min-height: 100%;
+      font-family: system-ui, -apple-system, sans-serif;
+      background:
+        radial-gradient(900px 500px at 110% -10%, #d3e8b9 0%, transparent 55%),
+        var(--bg);
+      color: var(--ink);
+      -webkit-user-select: none; user-select: none;
+      touch-action: manipulation;
+    }
+    .back-link {
+      position: fixed; top: 12px; left: 12px; z-index: 60;
+      background: var(--panel); color: var(--muted);
+      text-decoration: none; font-size: 0.82rem;
+      padding: 6px 12px; border-radius: 999px; box-shadow: var(--shadow);
+    }
+    .wrap { min-height: 100vh; display: grid; place-items: center; padding: 60px 16px; }
+    .card { background: var(--panel); padding: 22px; border-radius: 22px; box-shadow: var(--shadow); width: min(540px, 100%); text-align: center; }
+    h1 { margin: 0 0 4px; font-size: 1.5rem; }
+    .sub { color: var(--muted); margin: 0 0 16px; font-size: 0.92rem; min-height: 1.4em; }
+
+    .field {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;
+      background: linear-gradient(180deg, var(--grass) 0%, var(--grass-dark) 100%);
+      border-radius: 18px; padding: 16px;
+    }
+    .hole {
+      position: relative;
+      aspect-ratio: 1 / 1;
+      background: radial-gradient(ellipse at 50% 60%, var(--dirt-dark) 0%, var(--dirt) 60%, transparent 80%);
+      border-radius: 50%;
+      overflow: hidden;
+      cursor: pointer;
+    }
+    .mole {
+      position: absolute; left: 10%; right: 10%; bottom: -100%;
+      aspect-ratio: 1 / 1;
+      transition: bottom 220ms cubic-bezier(.4, .2, .2, 1);
+      display: grid; place-items: center;
+      font-size: clamp(2.2rem, 8vw, 3.4rem);
+      pointer-events: none;
+      filter: drop-shadow(0 4px 6px rgba(0,0,0,0.2));
+    }
+    .hole.up .mole { bottom: 12%; }
+    .hole.bonk .mole { transform: scale(0.7); transition: transform 80ms ease, bottom 220ms ease; }
+
+    .stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px; margin-top: 14px; }
+    .stat { background: #f1f6e6; border-radius: 10px; padding: 8px; }
+    .stat .v { font-weight: 700; font-variant-numeric: tabular-nums; }
+    .stat .k { color: var(--muted); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; }
+
+    .row { display: flex; gap: 8px; justify-content: center; margin-top: 14px; flex-wrap: wrap; }
+    button.btn {
+      background: #f1f6e6; border: 0; border-radius: 999px; padding: 8px 14px;
+      font: inherit; font-size: 0.85rem; cursor: pointer; color: var(--ink);
+    }
+    button.btn:hover { background: #e3eed1; }
+    button.btn.primary { background: var(--accent); color: #fff; font-weight: 700; }
+    button.btn.primary:hover { background: #4a7b30; }
+
+    .timer-bar {
+      height: 8px; background: rgba(255,255,255,0.4); border-radius: 999px; overflow: hidden; margin: 12px 0 4px;
+    }
+    .timer-bar > div {
+      height: 100%; background: var(--accent); width: 100%;
+      transition: width 100ms linear;
+    }
+  </style>
+</head>
+<body>
+  <a class="back-link" href="../../">← arcade</a>
+  <div class="wrap">
+    <div class="card">
+      <h1>Whack-a-Mole</h1>
+      <p class="sub" id="sub">Tap moles. Avoid bunnies (-1). 30 seconds.</p>
+      <div class="field" id="field"></div>
+      <div class="timer-bar"><div id="timerFill"></div></div>
+      <div class="stats">
+        <div class="stat"><div class="v" id="score">0</div><div class="k">score</div></div>
+        <div class="stat"><div class="v" id="time">30</div><div class="k">seconds</div></div>
+        <div class="stat"><div class="v" id="best">0</div><div class="k">best</div></div>
+      </div>
+      <div class="row">
+        <button class="btn primary" id="startBtn">Start</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  (() => {
+    const KEY = 'whackamole.v1';
+    const DURATION = 30;
+    const HOLES = 9;
+    const field = document.getElementById('field');
+    const scoreEl = document.getElementById('score');
+    const timeEl = document.getElementById('time');
+    const bestEl = document.getElementById('best');
+    const fill = document.getElementById('timerFill');
+    const sub = document.getElementById('sub');
+    const startBtn = document.getElementById('startBtn');
+
+    let stats = { best: 0 };
+    try { Object.assign(stats, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch {}
+    bestEl.textContent = stats.best;
+
+    const holes = [];
+    for (let i = 0; i < HOLES; i++) {
+      const h = document.createElement('div');
+      h.className = 'hole';
+      h.innerHTML = '<div class="mole">🐹</div>';
+      h.addEventListener('pointerdown', () => bonk(i));
+      field.appendChild(h);
+      holes.push({ el: h, occupied: false, kind: null });
+    }
+
+    let running = false, score = 0, endsAt = 0, raf = null, spawnTimer = null;
+
+    function start() {
+      score = 0; scoreEl.textContent = '0';
+      sub.textContent = 'Tap moles. Avoid bunnies (-1).';
+      running = true;
+      endsAt = performance.now() + DURATION * 1000;
+      startBtn.textContent = 'Restart';
+      tick();
+      scheduleSpawn();
+    }
+
+    function tick() {
+      const now = performance.now();
+      const remain = Math.max(0, endsAt - now);
+      const sec = Math.ceil(remain / 1000);
+      timeEl.textContent = sec;
+      fill.style.width = (remain / (DURATION * 1000) * 100).toFixed(1) + '%';
+      if (remain <= 0) return finish();
+      raf = requestAnimationFrame(tick);
+    }
+
+    function scheduleSpawn() {
+      if (!running) return;
+      const elapsed = (DURATION * 1000) - (endsAt - performance.now());
+      const progress = elapsed / (DURATION * 1000);
+      const minDelay = Math.max(220, 700 - progress * 500);
+      const maxDelay = Math.max(420, 1200 - progress * 700);
+      const delay = minDelay + Math.random() * (maxDelay - minDelay);
+      spawnTimer = setTimeout(() => { spawn(); scheduleSpawn(); }, delay);
+    }
+
+    function spawn() {
+      const free = holes.map((h, i) => h.occupied ? null : i).filter(i => i != null);
+      if (!free.length) return;
+      const idx = free[Math.floor(Math.random() * free.length)];
+      const isBunny = Math.random() < 0.18;
+      const isGold = !isBunny && Math.random() < 0.10;
+      const kind = isBunny ? 'bunny' : (isGold ? 'gold' : 'mole');
+      const sym = kind === 'bunny' ? '🐰' : kind === 'gold' ? '✨' : '🐹';
+      const h = holes[idx];
+      h.occupied = true;
+      h.kind = kind;
+      h.el.querySelector('.mole').textContent = sym;
+      h.el.classList.add('up');
+      const upTime = 700 + Math.random() * 700;
+      setTimeout(() => {
+        if (h.occupied) {
+          h.el.classList.remove('up');
+          setTimeout(() => { h.occupied = false; h.kind = null; h.el.classList.remove('bonk'); }, 240);
+        }
+      }, upTime);
+    }
+
+    function bonk(i) {
+      if (!running) return;
+      const h = holes[i];
+      if (!h.occupied) return;
+      const kind = h.kind;
+      h.el.classList.add('bonk');
+      if (kind === 'bunny') score = Math.max(0, score - 1);
+      else if (kind === 'gold') score += 3;
+      else score += 1;
+      scoreEl.textContent = score;
+      h.el.classList.remove('up');
+      setTimeout(() => { h.occupied = false; h.kind = null; h.el.classList.remove('bonk'); }, 240);
+    }
+
+    function finish() {
+      running = false;
+      cancelAnimationFrame(raf);
+      clearTimeout(spawnTimer);
+      fill.style.width = '0%';
+      // Hide any remaining
+      holes.forEach(h => { h.el.classList.remove('up'); h.occupied = false; h.kind = null; });
+      const isBest = score > stats.best;
+      if (isBest) { stats.best = score; try { localStorage.setItem(KEY, JSON.stringify(stats)); } catch {} }
+      bestEl.textContent = stats.best;
+      sub.textContent = isBest ? `New best — ${score}! 🎉` : `Final score: ${score}.`;
+    }
+
+    startBtn.addEventListener('click', start);
+  })();
+  </script>
+</body>
+</html>

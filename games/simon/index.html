@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Simon</title>
+  <style>
+    :root {
+      --bg: #1a1c2e;
+      --panel: #232646;
+      --ink: #e8eaff;
+      --muted: #8e93c4;
+      --shadow: 0 18px 40px rgba(0,0,0,0.4);
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0; min-height: 100%;
+      font-family: system-ui, -apple-system, sans-serif;
+      background:
+        radial-gradient(900px 500px at 110% -10%, #2e3568 0%, transparent 55%),
+        radial-gradient(700px 500px at -10% 110%, #2a3a5e 0%, transparent 55%),
+        var(--bg);
+      color: var(--ink);
+      -webkit-user-select: none; user-select: none;
+      touch-action: manipulation;
+    }
+    .back-link {
+      position: fixed; top: 12px; left: 12px; z-index: 60;
+      background: var(--panel); color: var(--muted);
+      text-decoration: none; font-size: 0.82rem;
+      padding: 6px 12px; border-radius: 999px; box-shadow: var(--shadow);
+    }
+    .wrap { min-height: 100vh; display: grid; place-items: center; padding: 60px 16px; }
+    .card { background: var(--panel); padding: 22px; border-radius: 22px; box-shadow: var(--shadow); width: min(420px, 100%); text-align: center; }
+    h1 { margin: 0 0 4px; font-size: 1.5rem; }
+    .sub { color: var(--muted); margin: 0 0 18px; font-size: 0.92rem; min-height: 1.4em; }
+
+    .pad-wrap {
+      position: relative;
+      aspect-ratio: 1 / 1;
+      border-radius: 50%;
+      background: #0e1126;
+      padding: 14px;
+      box-shadow: inset 0 4px 14px rgba(0,0,0,0.5), 0 8px 20px rgba(0,0,0,0.3);
+    }
+    .pads {
+      position: relative;
+      width: 100%; height: 100%;
+      border-radius: 50%;
+      overflow: hidden;
+    }
+    .pad {
+      position: absolute;
+      width: 50%; height: 50%;
+      cursor: pointer;
+      transition: filter 100ms ease, transform 80ms ease;
+    }
+    .pad.green  { top: 0; left: 0; background: #2e8a4e; border-top-left-radius: 100% 100%; }
+    .pad.red    { top: 0; right: 0; background: #c44545; border-top-right-radius: 100% 100%; }
+    .pad.yellow { bottom: 0; left: 0; background: #d6a836; border-bottom-left-radius: 100% 100%; }
+    .pad.blue   { bottom: 0; right: 0; background: #3c6ac8; border-bottom-right-radius: 100% 100%; }
+    .pad.lit { filter: brightness(1.7); }
+    .pad:active { transform: scale(0.985); }
+
+    .center {
+      position: absolute; inset: 32%;
+      background: #0c0e1f;
+      border-radius: 50%;
+      display: grid; place-items: center;
+      box-shadow: inset 0 4px 8px rgba(0,0,0,0.6), 0 0 0 6px #1d1f3a;
+    }
+    .center .level {
+      font-size: 1.7rem; font-weight: 800;
+      font-variant-numeric: tabular-nums;
+    }
+    .center .label { font-size: 0.7rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.1em; }
+
+    .stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; margin-top: 14px; }
+    .stat { background: rgba(255,255,255,0.06); border-radius: 10px; padding: 8px; }
+    .stat .v { font-weight: 700; font-variant-numeric: tabular-nums; }
+    .stat .k { color: var(--muted); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; }
+
+    .row { display: flex; gap: 8px; justify-content: center; margin-top: 14px; flex-wrap: wrap; }
+    button.btn {
+      background: rgba(255,255,255,0.06); border: 0; border-radius: 999px; padding: 8px 14px;
+      font: inherit; font-size: 0.85rem; cursor: pointer; color: var(--ink);
+    }
+    button.btn:hover { background: rgba(255,255,255,0.12); }
+    button.btn.primary { background: #5b6cf0; color: #fff; font-weight: 700; }
+    button.btn.primary:hover { background: #4955d4; }
+  </style>
+</head>
+<body>
+  <a class="back-link" href="../../">← arcade</a>
+  <div class="wrap">
+    <div class="card">
+      <h1>Simon</h1>
+      <p class="sub" id="sub">Watch the pattern, then repeat it.</p>
+      <div class="pad-wrap">
+        <div class="pads" id="pads">
+          <div class="pad green" data-c="green"></div>
+          <div class="pad red" data-c="red"></div>
+          <div class="pad yellow" data-c="yellow"></div>
+          <div class="pad blue" data-c="blue"></div>
+          <div class="center">
+            <div>
+              <div class="level" id="level">—</div>
+              <div class="label">round</div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="stats">
+        <div class="stat"><div class="v" id="score">0</div><div class="k">round</div></div>
+        <div class="stat"><div class="v" id="best">0</div><div class="k">best</div></div>
+      </div>
+      <div class="row">
+        <button class="btn primary" id="startBtn">Start</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  (() => {
+    const KEY = 'simon.v1';
+    const COLORS = ['green', 'red', 'yellow', 'blue'];
+    const TONES = { green: 261.63, red: 329.63, yellow: 392.00, blue: 523.25 };
+    const pads = {};
+    document.querySelectorAll('.pad').forEach(p => {
+      pads[p.dataset.c] = p;
+      p.addEventListener('pointerdown', () => userPress(p.dataset.c));
+    });
+    const sub = document.getElementById('sub');
+    const lvl = document.getElementById('level');
+    const scoreEl = document.getElementById('score');
+    const bestEl = document.getElementById('best');
+    const startBtn = document.getElementById('startBtn');
+
+    let stats = { best: 0 };
+    try { Object.assign(stats, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch {}
+    bestEl.textContent = stats.best;
+
+    let seq = [];
+    let userIdx = 0;
+    let acceptInput = false;
+
+    let audioCtx = null;
+    function tone(freq, dur = 320) {
+      try {
+        if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        const t = audioCtx.currentTime;
+        const osc = audioCtx.createOscillator();
+        const g = audioCtx.createGain();
+        osc.type = 'sine';
+        osc.frequency.value = freq;
+        g.gain.setValueAtTime(0.0001, t);
+        g.gain.exponentialRampToValueAtTime(0.18, t + 0.02);
+        g.gain.exponentialRampToValueAtTime(0.0001, t + dur / 1000);
+        osc.connect(g).connect(audioCtx.destination);
+        osc.start(t);
+        osc.stop(t + dur / 1000 + 0.05);
+      } catch {}
+    }
+
+    function flash(color, dur = 380) {
+      return new Promise(res => {
+        const p = pads[color];
+        p.classList.add('lit');
+        tone(TONES[color], dur);
+        setTimeout(() => { p.classList.remove('lit'); setTimeout(res, 120); }, dur);
+      });
+    }
+
+    function start() {
+      seq = [];
+      sub.textContent = 'Watch carefully.';
+      lvl.textContent = '0';
+      scoreEl.textContent = '0';
+      startBtn.textContent = 'Restart';
+      nextRound();
+    }
+
+    async function nextRound() {
+      acceptInput = false;
+      seq.push(COLORS[Math.floor(Math.random() * 4)]);
+      lvl.textContent = seq.length;
+      scoreEl.textContent = seq.length - 1;
+      sub.textContent = `Round ${seq.length}.`;
+      const speed = Math.max(180, 480 - seq.length * 12);
+      await sleep(500);
+      for (const c of seq) {
+        await flash(c, speed);
+      }
+      sub.textContent = 'Your turn.';
+      userIdx = 0;
+      acceptInput = true;
+    }
+
+    function userPress(color) {
+      if (!acceptInput) return;
+      flash(color, 220);
+      if (color !== seq[userIdx]) {
+        return fail();
+      }
+      userIdx++;
+      if (userIdx >= seq.length) {
+        acceptInput = false;
+        const reached = seq.length;
+        scoreEl.textContent = reached;
+        if (reached > stats.best) {
+          stats.best = reached;
+          try { localStorage.setItem(KEY, JSON.stringify(stats)); } catch {}
+          bestEl.textContent = stats.best;
+        }
+        setTimeout(nextRound, 700);
+      }
+    }
+
+    function fail() {
+      acceptInput = false;
+      sub.textContent = `Wrong! You made it to round ${seq.length}.`;
+      tone(120, 600);
+      // little error flash
+      Object.values(pads).forEach(p => p.classList.add('lit'));
+      setTimeout(() => Object.values(pads).forEach(p => p.classList.remove('lit')), 220);
+    }
+
+    function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+    startBtn.addEventListener('click', start);
+  })();
+  </script>
+</body>
+</html>

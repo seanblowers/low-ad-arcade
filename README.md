@@ -23,6 +23,16 @@ No build step, no bundler, no framework.
 | --- | --- | --- |
 | 🐰 Bunny Clicker | `games/bunny-clicker/` | Cookie-clicker-style idle game |
 | 🫧 Bubble Wrap | `games/bubble-wrap/` | Pop bubbles. Refill. Repeat. |
+| ⚡ Reaction Time | `games/reaction/` | Wait for green. Click as fast as you can. |
+| ⭕ Tic-Tac-Toe | `games/tic-tac-toe/` | Three in a row vs. a minimax AI. |
+| 💡 Lights Out | `games/lights-out/` | Toggle tiles to turn off all the lights. |
+| 🃏 Memory Match | `games/memory-match/` | Find every pair in as few moves as possible. |
+| ➕ Speed Math | `games/speed-math/` | Sixty seconds of arithmetic. |
+| 🐹 Whack-a-Mole | `games/whack-a-mole/` | Tap moles, dodge bunnies, chase the gold. |
+| 🎵 Simon | `games/simon/` | Repeat the color/tone pattern. |
+| 🐍 Snake | `games/snake/` | Eat, grow, don’t bite yourself. |
+| 🏝️ Zen Sand | `games/zen-sand/` | A sandbox with a rake and stones. No score. |
+| 🔢 2048 | `games/twenty-forty-eight/` | Slide tiles to reach 2048. |
 
 ## Adding a new game
 

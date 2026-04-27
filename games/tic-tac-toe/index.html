@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Tic-Tac-Toe</title>
+  <style>
+    :root {
+      --bg: #f6f3fb;
+      --panel: #fff;
+      --ink: #2b2244;
+      --muted: #8579a8;
+      --accent: #8762d9;
+      --x: #d9438a;
+      --o: #4290d9;
+      --shadow: 0 6px 16px rgba(60, 40, 80, 0.10);
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0; min-height: 100%;
+      font-family: system-ui, -apple-system, sans-serif;
+      background:
+        radial-gradient(900px 500px at 110% -10%, #eadcff 0%, transparent 55%),
+        radial-gradient(700px 500px at -10% 110%, #f7d8e5 0%, transparent 55%),
+        var(--bg);
+      color: var(--ink);
+      -webkit-user-select: none; user-select: none;
+    }
+    .back-link {
+      position: fixed; top: 12px; left: 12px; z-index: 60;
+      background: var(--panel); color: var(--muted);
+      text-decoration: none; font-size: 0.82rem;
+      padding: 6px 12px; border-radius: 999px; box-shadow: var(--shadow);
+    }
+    .wrap {
+      min-height: 100vh; display: grid; place-items: center; padding: 60px 16px;
+    }
+    .card {
+      background: var(--panel); padding: 24px; border-radius: 22px;
+      box-shadow: var(--shadow); width: min(420px, 100%);
+      text-align: center;
+    }
+    h1 { margin: 0 0 4px; font-size: 1.6rem; letter-spacing: -0.01em; }
+    .sub { color: var(--muted); margin: 0 0 16px; font-size: 0.95rem; min-height: 1.4em; }
+    .board {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px;
+      aspect-ratio: 1 / 1;
+    }
+    .cell {
+      background: #f3eefb; border: 0; border-radius: 14px;
+      font-size: clamp(2.2rem, 10vw, 3.4rem);
+      font-weight: 800; cursor: pointer;
+      transition: background 100ms ease, transform 80ms ease;
+      display: grid; place-items: center;
+      font-family: inherit;
+    }
+    .cell:hover:not(:disabled) { background: #ebe1fa; }
+    .cell:active:not(:disabled) { transform: scale(0.96); }
+    .cell:disabled { cursor: default; }
+    .cell.x { color: var(--x); }
+    .cell.o { color: var(--o); }
+    .cell.win { background: #fff2dc; }
+
+    .stats {
+      display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px;
+      margin-top: 16px;
+    }
+    .stat { background: #faf6ff; border-radius: 12px; padding: 8px; }
+    .stat .v { font-weight: 700; font-variant-numeric: tabular-nums; }
+    .stat .k { color: var(--muted); font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; }
+
+    .row {
+      display: flex; gap: 8px; justify-content: center; margin-top: 14px;
+    }
+    button.btn {
+      background: #faf6ff; border: 0; border-radius: 999px; padding: 8px 14px;
+      font: inherit; font-size: 0.85rem; cursor: pointer; color: var(--ink);
+    }
+    button.btn:hover { background: #f0e6ff; }
+    button.btn.primary { background: var(--accent); color: #fff; }
+    button.btn.primary:hover { background: #7651c8; }
+
+    .toggle {
+      display: flex; gap: 6px; justify-content: center; margin-top: 6px;
+    }
+    .toggle .opt {
+      background: #f3eefb; padding: 4px 10px; border-radius: 999px;
+      font-size: 0.78rem; cursor: pointer; color: var(--muted);
+    }
+    .toggle .opt.active { background: var(--accent); color: #fff; }
+  </style>
+</head>
+<body>
+  <a class="back-link" href="../../">← arcade</a>
+  <div class="wrap">
+    <div class="card">
+      <h1>Tic-Tac-Toe</h1>
+      <p class="sub" id="status">You’re X. Good luck.</p>
+      <div class="board" id="board"></div>
+      <div class="stats">
+        <div class="stat"><div class="v" id="wins">0</div><div class="k">wins</div></div>
+        <div class="stat"><div class="v" id="draws">0</div><div class="k">draws</div></div>
+        <div class="stat"><div class="v" id="losses">0</div><div class="k">losses</div></div>
+      </div>
+      <div class="toggle">
+        <span class="opt" data-d="easy">easy</span>
+        <span class="opt" data-d="medium">medium</span>
+        <span class="opt active" data-d="hard">hard</span>
+      </div>
+      <div class="row">
+        <button class="btn primary" id="resetBtn">New game</button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+  (() => {
+    const KEY = 'tictactoe.v1';
+    const boardEl = document.getElementById('board');
+    const status = document.getElementById('status');
+    const winsEl = document.getElementById('wins');
+    const drawsEl = document.getElementById('draws');
+    const lossesEl = document.getElementById('losses');
+
+    let stats = { wins: 0, draws: 0, losses: 0, difficulty: 'hard' };
+    try { Object.assign(stats, JSON.parse(localStorage.getItem(KEY) || '{}')); } catch {}
+    document.querySelectorAll('.toggle .opt').forEach(o => {
+      o.classList.toggle('active', o.dataset.d === stats.difficulty);
+      o.addEventListener('click', () => {
+        stats.difficulty = o.dataset.d;
+        document.querySelectorAll('.toggle .opt').forEach(x => x.classList.toggle('active', x === o));
+        save(); newGame();
+      });
+    });
+
+    let board = Array(9).fill(null);
+    let cells = [];
+    let lock = false;
+
+    function save() { try { localStorage.setItem(KEY, JSON.stringify(stats)); } catch {} }
+
+    function render() {
+      boardEl.innerHTML = '';
+      cells = [];
+      for (let i = 0; i < 9; i++) {
+        const b = document.createElement('button');
+        b.className = 'cell';
+        b.disabled = !!board[i] || lock;
+        if (board[i]) { b.textContent = board[i]; b.classList.add(board[i].toLowerCase()); }
+        b.addEventListener('click', () => playerMove(i));
+        cells.push(b);
+        boardEl.appendChild(b);
+      }
+      winsEl.textContent = stats.wins;
+      drawsEl.textContent = stats.draws;
+      lossesEl.textContent = stats.losses;
+    }
+
+    function lines() {
+      return [
+        [0,1,2],[3,4,5],[6,7,8],
+        [0,3,6],[1,4,7],[2,5,8],
+        [0,4,8],[2,4,6]
+      ];
+    }
+    function winner(b) {
+      for (const [a,c,d] of lines()) {
+        if (b[a] && b[a] === b[c] && b[a] === b[d]) return { who: b[a], line: [a,c,d] };
+      }
+      if (b.every(x => x)) return { who: 'draw' };
+      return null;
+    }
+
+    function playerMove(i) {
+      if (lock || board[i]) return;
+      board[i] = 'X';
+      render();
+      const w = winner(board);
+      if (w) return endGame(w);
+      lock = true;
+      setTimeout(() => { aiMove(); lock = false; render(); const w2 = winner(board); if (w2) endGame(w2); }, 220);
+    }
+
+    function aiMove() {
+      const empty = board.map((v, i) => v ? null : i).filter(i => i != null);
+      let pick;
+      if (stats.difficulty === 'easy') {
+        pick = empty[Math.floor(Math.random() * empty.length)];
+      } else if (stats.difficulty === 'medium') {
+        pick = Math.random() < 0.5
+          ? empty[Math.floor(Math.random() * empty.length)]
+          : bestMove();
+      } else {
+        pick = bestMove();
+      }
+      if (pick != null) board[pick] = 'O';
+    }
+
+    function bestMove() {
+      let best = -Infinity, move = null;
+      for (let i = 0; i < 9; i++) {
+        if (board[i]) continue;
+        board[i] = 'O';
+        const score = minimax(board, 0, false);
+        board[i] = null;
+        if (score > best) { best = score; move = i; }
+      }
+      return move;
+    }
+
+    function minimax(b, depth, maximizing) {
+      const w = winner(b);
+      if (w) {
+        if (w.who === 'O') return 10 - depth;
+        if (w.who === 'X') return depth - 10;
+        return 0;
+      }
+      if (maximizing) {
+        let best = -Infinity;
+        for (let i = 0; i < 9; i++) {
+          if (b[i]) continue;
+          b[i] = 'O';
+          best = Math.max(best, minimax(b, depth + 1, false));
+          b[i] = null;
+        }
+        return best;
+      } else {
+        let best = Infinity;
+        for (let i = 0; i < 9; i++) {
+          if (b[i]) continue;
+          b[i] = 'X';
+          best = Math.min(best, minimax(b, depth + 1, true));
+          b[i] = null;
+        }
+        return best;
+      }
+    }
+
+    function endGame(w) {
+      lock = true;
+      if (w.line) for (const i of w.line) cells[i].classList.add('win');
+      if (w.who === 'X') { stats.wins++; status.textContent = 'You win! 🎉'; }
+      else if (w.who === 'O') { stats.losses++; status.textContent = 'Computer wins.'; }
+      else { stats.draws++; status.textContent = 'A draw.'; }
+      save(); render();
+    }
+
+    function newGame() {
+      board = Array(9).fill(null);
+      lock = false;
+      status.textContent = 'You’re X. Good luck.';
+      render();
+    }
+
+    document.getElementById('resetBtn').addEventListener('click', newGame);
+    render();
+  })();
+  </script>
+</body>
+</html>
